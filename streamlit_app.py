@@ -3,213 +3,257 @@ import yfinance as yf
 import pandas as pd
 import plotly.graph_objs as go
 
-# Fonction pour charger les tickers d'ETF à partir d'un fichier
-def load_etf_list(file_path):
+# Fonction pour charger la liste depuis un fichier
+def load_list(filename):
     try:
-        with open(file_path, 'r') as f:
+        with open(filename, 'r') as f:
             return [line.strip() for line in f.readlines()]
     except FileNotFoundError:
         return []
 
-# Fonction pour sauvegarder les tickers d'ETF dans un fichier
-def save_etf_list(file_path, etfs):
-    with open(file_path, 'w') as f:
-        f.write("\n".join(etfs))
+# Fonction pour sauvegarder la liste dans un fichier
+def save_list(filename, items):
+    with open(filename, 'w') as f:
+        for item in items:
+            f.write(f"{item}\n")
 
-# Définir le chemin du fichier contenant la liste des ETFs
-ETF_FILE = 'etf_list.txt'
+# Fonction pour afficher les graphiques en chandelier
+def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
+    for ticker in tickers:
+        title_prefix = "⭐ " if ticker in ['SP5.PA', 'UST.PA', 'MGT.PA', 'WLD.PA'] else ""
+        st.subheader(f"{title_prefix}Cours de {ticker} - {period} d'historique")
 
-# Charger la liste des ETFs depuis le fichier
-etfs = load_etf_list(ETF_FILE)
+        # Récupérer les données
+        try:
+            data = yf.download(ticker, period=period)
+            if data.empty:
+                st.warning(f"Aucune donnée trouvée pour {ticker}.")
+                continue  # Passer à l'ETF suivant si pas de données
 
-# ETFs avec une étoile (ajouter une étoile verte au titre du graphique)
-starred_etfs = ["SP5.PA", "UST.PA", "MGT.PA", "WLD.PA"]
+            if not isinstance(data.index, pd.DatetimeIndex):
+                data.index = pd.to_datetime(data.index)
 
-# Titre de l'application
-st.title("Suivi des ETFs avec Yahoo Finance")
+            # Resample les données hebdomadaires
+            data = data.resample('W').agg({'Close': 'last', 'Open': 'first', 'High': 'max', 'Low': 'min'})
 
-# Créer deux onglets dans l'interface Streamlit
-tab1, tab2 = st.tabs(["Graphiques en chandeliers", "Courbes différentielles"])
+            # Création du graphique en chandelier
+            fig = go.Figure(data=[go.Candlestick(
+                x=data.index,
+                open=data['Open'],
+                high=data['High'],
+                low=data['Low'],
+                close=data['Close'],
+                name=ticker
+            )])
 
-# Premier onglet : Graphiques en chandeliers pour chaque ETF
-with tab1:
-    st.subheader("Graphiques en chandeliers pour chaque ETF")
-
-    # Utilisation de st.text_area pour entrer les tickers, avec la liste actuelle comme valeur par défaut
-    tickers_input = st.text_area(
-        'Entrez les tickers des ETFs (un par ligne) :',
-        value="\n".join(etfs)  # Charger la liste dans le text_area
-    )
-
-    # Conversion de la chaîne de tickers en une liste
-    selected_etfs = [ticker.strip() for ticker in tickers_input.splitlines() if ticker.strip()]
-
-    # Sauvegarder les tickers mis à jour dans le fichier lors du clic sur le bouton
-    if st.button('Enregistrer la liste d\'ETFs'):
-        save_etf_list(ETF_FILE, selected_etfs)
-        st.success("La liste des ETFs a été sauvegardée.")
-
-    # Période : choix entre 2 ans ou 5 ans (par défaut 5 ans)
-    selected_period = st.radio(
-        "Choisissez la profondeur historique des données :",
-        ('2 ans', '5 ans'),
-        index=1,  # 5 ans sélectionné par défaut
-        key="period_chandeliers"  # Ajout d'une clé unique
-    )
-
-    # Conversion de la sélection en format acceptable pour yfinance
-    period = "2y" if selected_period == '2 ans' else "5y"
-
-    # Option pour activer la moyenne mobile simple (SMA), activée par défaut
-    show_sma = st.checkbox('Afficher la moyenne mobile simple (SMA)', value=True)
-
-    # Si SMA activée, choix du nombre de périodes pour la moyenne mobile
-    if show_sma:
-        sma_period = st.slider('Choisissez le nombre de périodes pour la SMA', min_value=5, max_value=100, value=30)
-
-    # Boucle sur les ETFs sélectionnés
-    for ticker in selected_etfs:
-        # Ajout de l'étoile verte pour les ETFs dans la liste starred_etfs
-        title_prefix = "⭐ " if ticker in starred_etfs else ""
-
-        # Création du titre avec ou sans étoile
-        title = f"{title_prefix}Cours de l'ETF {ticker} - {selected_period} d'historique"
-
-        st.subheader(title)
-
-        # Récupération des données de l'ETF
-        etf_data = yf.download(ticker, period=period)
-
-        # Vérification et conversion de l'index en DatetimeIndex si nécessaire
-        if not isinstance(etf_data.index, pd.DatetimeIndex):
-            etf_data.index = pd.to_datetime(etf_data.index)
-
-        # Résample les données pour obtenir un échantillonnage hebdomadaire (W = Weekly)
-        etf_data_weekly = etf_data.resample('W').agg({'Open': 'first', 
-                                                      'High': 'max',
-                                                      'Low': 'min', 
-                                                      'Close': 'last',
-                                                      'Volume': 'sum'})
-
-        # Création du graphique en chandeliers avec Plotly
-        fig = go.Figure(data=[go.Candlestick(x=etf_data_weekly.index,
-                                             open=etf_data_weekly['Open'],
-                                             high=etf_data_weekly['High'],
-                                             low=etf_data_weekly['Low'],
-                                             close=etf_data_weekly['Close'],
-                                             name=f'{ticker}')])
-
-        # Si l'option de la SMA est activée, calculer et ajouter la SMA au graphique
-        if show_sma:
-            etf_data_weekly['SMA'] = etf_data_weekly['Close'].rolling(window=sma_period).mean()
-
-            fig.add_trace(go.Scatter(
-                x=etf_data_weekly.index,
-                y=etf_data_weekly['SMA'],
-                mode='lines',
-                name=f'SMA {sma_period} périodes',
-                line=dict(color='yellow', width=2)
-            ))
-
-        fig.update_layout(
-            title=title,
-            xaxis_title='Date',
-            yaxis_title='Prix (€)',
-            xaxis_rangeslider_visible=False  # Cacher le range slider pour des chandeliers
-        )
-
-        # Affichage du graphique dans Streamlit
-        st.plotly_chart(fig)
-
-        # Option pour afficher le tableau de données
-        if st.checkbox(f'Afficher les données sous forme de tableau pour {ticker}', key=f'table_{ticker}'):
-            st.subheader(f'Tableau des données hebdomadaires pour {ticker}')
-            st.write(etf_data_weekly[['Open', 'High', 'Low', 'Close']].head())
-
-# Deuxième onglet : Courbes différentielles
-with tab2:
-    st.subheader("Courbes différentielles entre les ETFs")
-
-    # Choix de l'ETF de référence
-    etf_ref = st.selectbox('Choisissez l\'ETF de référence pour la division', selected_etfs, index=0)
-
-    # Période : choix entre 2 ans ou 5 ans (par défaut 5 ans)
-    selected_period = st.radio(
-        "Choisissez la profondeur historique des données :",
-        ('2 ans', '5 ans'),
-        index=1,  # 5 ans sélectionné par défaut
-        key="period_diff"  # Ajout d'une clé unique
-    )
-
-    # Conversion de la sélection en format acceptable pour yfinance
-    period = "2y" if selected_period == '2 ans' else "5y"
-
-    # Option pour activer la moyenne mobile simple (SMA) pour les courbes différentielles, activée par défaut
-    show_sma_diff = st.checkbox('Afficher la moyenne mobile simple (SMA) pour les courbes différentielles', value=True)
-
-    # Si SMA activée, choix du nombre de périodes pour la SMA
-    if show_sma_diff:
-        sma_diff_period = st.slider('Choisissez le nombre de périodes pour la SMA des courbes différentielles', min_value=5, max_value=100, value=30)
-
-    # Récupérer les données de l'ETF de référence
-    etf_ref_data = yf.download(etf_ref, period=period)
-
-    # Vérification et conversion de l'index en DatetimeIndex si nécessaire
-    if not isinstance(etf_ref_data.index, pd.DatetimeIndex):
-        etf_ref_data.index = pd.to_datetime(etf_ref_data.index)
-
-    # Resample pour obtenir les prix hebdomadaires
-    etf_ref_data = etf_ref_data.resample('W').agg({'Close': 'last'})
-
-    # Boucle sur les ETFs pour créer des courbes différentielles
-    for ticker in selected_etfs:
-        if ticker != etf_ref:  # Ne pas comparer l'ETF de référence avec lui-même
-            st.subheader(f"Courbe différentielle {ticker}/{etf_ref}")
-
-            # Récupérer les données de l'ETF actuel
-            etf_data = yf.download(ticker, period=period)
-
-            # Vérification et conversion de l'index en DatetimeIndex si nécessaire
-            if not isinstance(etf_data.index, pd.DatetimeIndex):
-                etf_data.index = pd.to_datetime(etf_data.index)
-
-            # Resample pour obtenir les prix hebdomadaires
-            etf_data = etf_data.resample('W').agg({'Close': 'last'})
-
-            # Calcul de la courbe différentielle (division des prix de clôture)
-            differential = etf_data['Close'] / etf_ref_data['Close']
-
-            # Création du graphique de la courbe différentielle
-            fig = go.Figure()
-
-            fig.add_trace(go.Scatter(
-                x=etf_data.index,
-                y=differential,
-                mode='lines',
-                name=f'{ticker}/{etf_ref}',
-                line=dict(width=2)
-            ))
-
-            # Si l'option de la SMA est activée, ajouter la SMA au graphique
-            if show_sma_diff:
-                differential_sma = differential.rolling(window=sma_diff_period).mean()
-
+            # Ajouter la moyenne mobile simple si activée
+            if show_sma:
+                data['SMA'] = data['Close'].rolling(window=sma_period).mean()
                 fig.add_trace(go.Scatter(
-                    x=etf_data.index,
-                    y=differential_sma,
+                    x=data.index,
+                    y=data['SMA'],
                     mode='lines',
-                    name=f'SMA {sma_diff_period} périodes',
+                    name=f'SMA {sma_period} périodes',
                     line=dict(color='yellow', width=2)
                 ))
 
             fig.update_layout(
-                title=f'Courbe différentielle {ticker}/{etf_ref}',
+                title=f"Cours de {ticker} - {period} d'historique",
                 xaxis_title='Date',
-                yaxis_title=f'{ticker}/{etf_ref}',
+                yaxis_title='Prix',
             )
 
-            # Affichage du graphique dans Streamlit
             st.plotly_chart(fig)
+        except Exception as e:
+            st.error(f"Erreur lors de la récupération des données pour {ticker} : {e}")
 
-# Footer
-st.write("Données fournies par Yahoo Finance")
+# Fonction pour afficher les courbes différentielles
+def display_differential_curves(tickers, ref_ticker, period, show_sma, sma_period, key_prefix):
+    for ticker in tickers:
+        if ticker == ref_ticker:
+            continue
+        
+        st.subheader(f"Différentiel entre {ticker} et {ref_ticker}")
+
+        # Récupérer les données
+        try:
+            ref_data = yf.download(ref_ticker, period=period).resample('W').agg({'Close': 'last'})
+            ticker_data = yf.download(ticker, period=period).resample('W').agg({'Close': 'last'})
+            
+            if ref_data.empty or ticker_data.empty:
+                st.warning(f"Aucune donnée trouvée pour {ticker} ou {ref_ticker}.")
+                continue
+
+            # Calcul du différentiel
+            diff_data = ticker_data['Close'] / ref_data['Close']
+
+            # Création du graphique différentiel
+            fig = go.Figure(data=[go.Scatter(
+                x=diff_data.index,
+                y=diff_data,
+                mode='lines',
+                name=f'Différentiel {ticker}/{ref_ticker}'
+            )])
+
+            # Ajouter la moyenne mobile simple si activée
+            if show_sma:
+                diff_data_sma = diff_data.rolling(window=sma_period).mean()
+                fig.add_trace(go.Scatter(
+                    x=diff_data.index,
+                    y=diff_data_sma,
+                    mode='lines',
+                    name=f'SMA {sma_period} périodes',
+                    line=dict(color='yellow', width=2)
+                ))
+
+            fig.update_layout(
+                title=f"Différentiel entre {ticker} et {ref_ticker}",
+                xaxis_title='Date',
+                yaxis_title='Ratio',
+            )
+
+            st.plotly_chart(fig)
+        except Exception as e:
+            st.error(f"Erreur lors de la récupération des données pour {ticker} ou {ref_ticker} : {e}")
+
+# Onglets
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Indices", "Indices - différentiels", "Actions", "Actions - différentiels", "Devises"])
+
+# Onglet 1 : Indices
+with tab1:
+    st.subheader("Graphique en chandelier des ETFs")
+
+    # Charger la liste des ETFs
+    selected_etfs = load_list('etf_list.txt')
+
+    selected_period = st.radio(
+        "Choisissez la profondeur historique des données :",
+        ('2 ans', '5 ans'),
+        index=1,
+        key="period_chandeliers_etfs"
+    )
+    period = "2y" if selected_period == '2 ans' else "5y"
+
+    # Saisie des ETFs
+    etfs_input = st.text_input("Entrez les symboles des ETFs séparés par des virgules", ','.join(selected_etfs), key="etf_input")
+    etfs = [etf.strip() for etf in etfs_input.split(",")]
+
+    # Sauvegarder la liste des ETFs
+    if st.button("Sauvegarder la liste des ETFs"):
+        save_list('etf_list.txt', etfs)
+
+    show_sma = st.checkbox('Afficher la moyenne mobile simple (SMA)', value=True, key="sma_etfs")
+    if show_sma:
+        sma_period = st.slider('Choisissez le nombre de périodes pour la SMA', min_value=5, max_value=100, value=30, key="sma_period_etfs")
+
+    display_candlestick(etfs, period, show_sma, sma_period, key_prefix="etfs")
+
+# Onglet 2 : Indices - Courbes différentielles
+with tab2:
+    st.subheader("Courbes différentielles entre les ETFs")
+
+    # Charger la liste des ETFs
+    selected_etfs = load_list('etf_list.txt')
+
+    # Choix de l'ETF de référence
+    etf_ref = st.selectbox('Choisissez l\'ETF de référence pour la division', selected_etfs, index=0, key="etf_ref_diff")
+
+    selected_period = st.radio(
+        "Choisissez la profondeur historique des données :",
+        ('2 ans', '5 ans'),
+        index=1,
+        key="period_diff_etfs"
+    )
+    period = "2y" if selected_period == '2 ans' else "5y"
+
+    show_sma_diff = st.checkbox('Afficher la moyenne mobile simple (SMA) pour les courbes différentielles', value=True, key="sma_diff_etfs")
+    if show_sma_diff:
+        sma_diff_period = st.slider('Choisissez le nombre de périodes pour la SMA des courbes différentielles', min_value=5, max_value=100, value=30, key="sma_diff_period_etfs")
+
+    display_differential_curves(selected_etfs, etf_ref, period, show_sma_diff, sma_diff_period, key_prefix="etfs_diff")
+
+# Onglet 3 : Actions
+with tab3:
+    st.subheader("Graphique en chandelier des Actions")
+
+    # Charger la liste des actions
+    selected_actions = load_list('action_list.txt')
+
+    selected_period = st.radio(
+        "Choisissez la profondeur historique des données :",
+        ('2 ans', '5 ans'),
+        index=1,
+        key="period_chandeliers_actions"
+    )
+    period = "2y" if selected_period == '2 ans' else "5y"
+
+    # Saisie des actions
+    actions_input = st.text_input("Entrez les symboles des actions séparés par des virgules", ','.join(selected_actions), key="action_input")
+    actions = [action.strip() for action in actions_input.split(",")]
+
+    # Sauvegarder la liste des actions
+    if st.button("Sauvegarder la liste des actions"):
+        save_list('action_list.txt', actions)
+
+    show_sma = st.checkbox('Afficher la moyenne mobile simple (SMA)', value=True, key="sma_actions")
+    if show_sma:
+        sma_period = st.slider('Choisissez le nombre de périodes pour la SMA', min_value=5, max_value=100, value=30, key="sma_period_actions")
+
+    display_candlestick(actions, period, show_sma, sma_period, key_prefix="actions")
+
+# Onglet 4 : Actions - Courbes différentielles
+with tab4:
+    st.subheader("Courbes différentielles entre les Actions")
+
+    # Charger la liste des actions
+    selected_actions = load_list('action_list.txt')
+
+    # Saisie libre de l'action de référence
+    action_ref = st.text_input('Entrez l\'action de référence pour la division', key="action_ref_diff")
+
+    selected_period = st.radio(
+        "Choisissez la profondeur historique des données :",
+        ('2 ans', '5 ans'),
+        index=1,
+        key="period_diff_actions"
+    )
+    period = "2y" if selected_period == '2 ans' else "5y"
+
+    show_sma_diff = st.checkbox('Afficher la moyenne mobile simple (SMA) pour les courbes différentielles', value=True, key="sma_diff_actions")
+    if show_sma_diff:
+        sma_diff_period = st.slider('Choisissez le nombre de périodes pour la SMA des courbes différentielles', min_value=5, max_value=100, value=30, key="sma_diff_period_actions")
+
+    # Affichage des courbes différentielles uniquement si une action de référence est saisie
+    if action_ref:
+        display_differential_curves(selected_actions, action_ref, period, show_sma_diff, sma_diff_period, key_prefix="actions_diff")
+    else:
+        st.warning("Veuillez entrer une action de référence pour afficher les courbes différentielles.")
+
+# Onglet 5 : Devises
+with tab5:
+    st.subheader("Graphique en chandelier des Devises")
+
+    # Charger la liste des devises
+    selected_devises = load_list('devises_list.txt')
+
+    selected_period = st.radio(
+        "Choisissez la profondeur historique des données :",
+        ('2 ans', '5 ans'),
+        index=1,
+        key="period_chandeliers_devises"
+    )
+    period = "2y" if selected_period == '2 ans' else "5y"
+
+    # Saisie des devises
+    devises_input = st.text_input("Entrez les symboles des devises séparés par des virgules", ','.join(selected_devises), key="devise_input")
+    devises = [devise.strip() for devise in devises_input.split(",")]
+
+    # Sauvegarder la liste des devises
+    if st.button("Sauvegarder la liste des devises"):
+        save_list('devises_list.txt', devises)
+
+    show_sma = st.checkbox('Afficher la moyenne mobile simple (SMA)', value=True, key="sma_devises")
+    if show_sma:
+        sma_period = st.slider('Choisissez le nombre de périodes pour la SMA', min_value=5, max_value=100, value=30, key="sma_period_devises")
+
+    display_candlestick(devises, period, show_sma, sma_period, key_prefix="devises")
