@@ -19,8 +19,20 @@ def save_list(filename, items):
 
 # Fonction pour afficher les graphiques en chandelier
 def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
+    
+    # Listes pour définir les préfixes en fonction des tickers
+    green_square_list = ['SP5.PA', 'UST.PA', 'MGT.PA', 'WLD.PA', 'JPNH.PA', 'SGQI.PA', 'CRP.PA', 'GC=F']
+    red_square_list = ['TTE.PA', 'GLE.PA', 'BNP.PA']
+
     for ticker in tickers:
-        title_prefix = "🟩 " if ticker in ['SP5.PA', 'UST.PA', 'MGT.PA', 'WLD.PA', 'JPNH.PA', 'SGQI.PA', 'MGT.PA', 'CRP.PA', 'GC=F'] else ""
+        # Affichage du carré en fonction de l'appartenance aux listes
+        if ticker in green_square_list:
+            title_prefix = "🟩 "  # Carré vert
+        elif ticker in red_square_list:
+            title_prefix = "🟥 "  # Carré rouge
+        else:
+            title_prefix = ""
+
         st.subheader(f"{title_prefix}Cours de {ticker} - {period} d'historique")
 
         # Récupérer les données
