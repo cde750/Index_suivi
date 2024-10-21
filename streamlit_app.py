@@ -2,173 +2,183 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.graph_objs as go
+import os
 
-# Fonction pour charger la liste depuis un fichier
-def load_list(filename):
-    try:
-        with open(filename, 'r') as f:
-            return [line.strip() for line in f.readlines()]
-    except FileNotFoundError:
-        return []
-
-# Fonction pour sauvegarder la liste dans un fichier
-def save_list(filename, items):
-    with open(filename, 'w') as f:
-        for item in items:
-            f.write(f"{item}\n")
-
-# Fonction pour afficher les graphiques en chandelier
-def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
+# Fonction pour afficher un graphique en chandelier avec éventuellement la SMA
+def display_candlestick(tickers, period, show_sma, sma_period, key_prefix=""):
     for ticker in tickers:
-        title_prefix = "🟩 " if ticker in ['SP5.PA', 'UST.PA', 'MGT.PA', 'WLD.PA', 'JPNH.PA', 'SGQI.PA', 'MGT.PA', 'CRP.PA', 'GC=F'] else ""
-        st.subheader(f"{title_prefix}Cours de {ticker} - {period} d'historique")
-
-        # Récupérer les données
+        # Télécharger les données
         try:
             data = yf.download(ticker, period=period)
-            if data.empty:
-                st.warning(f"Aucune donnée trouvée pour {ticker}.")
-                continue  # Passer à l'ETF suivant si pas de données
-
-            if not isinstance(data.index, pd.DatetimeIndex):
-                data.index = pd.to_datetime(data.index)
-
-            # Resample les données hebdomadaires
-            data = data.resample('W').agg({'Close': 'last', 'Open': 'first', 'High': 'max', 'Low': 'min'})
-
-            # Création du graphique en chandelier
-            fig = go.Figure(data=[go.Candlestick(
-                x=data.index,
-                open=data['Open'],
-                high=data['High'],
-                low=data['Low'],
-                close=data['Close'],
-                name=ticker
-            )])
-
-            # Ajouter la moyenne mobile simple si activée
-            if show_sma:
-                data['SMA'] = data['Close'].rolling(window=sma_period).mean()
-                fig.add_trace(go.Scatter(
-                    x=data.index,
-                    y=data['SMA'],
-                    mode='lines',
-                    name=f'SMA {sma_period} périodes',
-                    line=dict(color='yellow', width=2)
-                ))
-
-            fig.update_layout(
-                title=f"Cours de {ticker} - {period} d'historique",
-                xaxis_title='Date',
-                yaxis_title='Prix',
-            )
-
-            st.plotly_chart(fig)
         except Exception as e:
-            st.error(f"Erreur lors de la récupération des données pour {ticker} : {e}")
+            st.error(f"Erreur lors du téléchargement des données pour {ticker}: {e}")
+            continue
+
+        # Vérifier que des données existent
+        if data.empty:
+            st.warning(f"Aucune donnée disponible pour {ticker}.")
+            continue
+
+        # Créer le graphique en chandelier
+        fig = go.Figure(data=[go.Candlestick(
+            x=data.index,
+            open=data['Open'],
+            high=data['High'],
+            low=data['Low'],
+            close=data['Close'],
+            name=ticker
+        )])
+
+        # Ajouter la SMA si cochée
+        if show_sma:
+            data['SMA'] = data['Close'].rolling(window=sma_period).mean()
+            fig.add_trace(go.Scatter(
+                x=data.index, y=data['SMA'],
+                mode='lines',
+                name=f'SMA {sma_period}',
+                line=dict(color='yellow')
+            ))
+
+        # Ajouter des préfixes pour les tickers spécifiques
+        green_square_list = ['SP5.PA', 'UST.PA', 'MGT.PA', 'WLD.PA']
+        red_square_list = ['TTE.PA', 'GLE.PA', 'BNP.PA']
+
+        if ticker in green_square_list:
+            title_prefix = "🟩 "  # Carré vert
+        elif ticker in red_square_list:
+            title_prefix = "🟥 "  # Carré rouge
+        else:
+            title_prefix = ""
+
+        # Configurer le titre du graphique
+        fig.update_layout(
+            title=f"{title_prefix} Cours de l'ETF {ticker} - {period} d'historique",
+            xaxis_title="Date",
+            yaxis_title="Prix",
+            xaxis_rangeslider_visible=False
+        )
+
+        st.plotly_chart(fig)
 
 # Fonction pour afficher les courbes différentielles
-def display_differential_curves(tickers, ref_ticker, period, show_sma, sma_period, key_prefix):
+def display_differential_curves(tickers, ref_ticker, period, show_sma, sma_period, key_prefix=""):
+    ref_data = yf.download(ref_ticker, period=period)
+    
+    # Vérifier que les données de référence existent
+    if ref_data.empty:
+        st.warning(f"Aucune donnée disponible pour l'action de référence {ref_ticker}.")
+        return
+
+    ref_close = ref_data['Close']
+
     for ticker in tickers:
-        if ticker == ref_ticker:
-            continue
-        
-        st.subheader(f"Différentiel entre {ticker} et {ref_ticker}")
-
-        # Récupérer les données
         try:
-            ref_data = yf.download(ref_ticker, period=period).resample('W').agg({'Close': 'last'})
-            ticker_data = yf.download(ticker, period=period).resample('W').agg({'Close': 'last'})
-            
-            if ref_data.empty or ticker_data.empty:
-                st.warning(f"Aucune donnée trouvée pour {ticker} ou {ref_ticker}.")
-                continue
-
-            # Calcul du différentiel
-            diff_data = ticker_data['Close'] / ref_data['Close']
-
-            # Création du graphique différentiel
-            fig = go.Figure(data=[go.Scatter(
-                x=diff_data.index,
-                y=diff_data,
-                mode='lines',
-                name=f'Différentiel {ticker}/{ref_ticker}'
-            )])
-
-            # Ajouter la moyenne mobile simple si activée
-            if show_sma:
-                diff_data_sma = diff_data.rolling(window=sma_period).mean()
-                fig.add_trace(go.Scatter(
-                    x=diff_data.index,
-                    y=diff_data_sma,
-                    mode='lines',
-                    name=f'SMA {sma_period} périodes',
-                    line=dict(color='yellow', width=2)
-                ))
-
-            fig.update_layout(
-                title=f"Différentiel entre {ticker} et {ref_ticker}",
-                xaxis_title='Date',
-                yaxis_title='Ratio',
-            )
-
-            st.plotly_chart(fig)
+            data = yf.download(ticker, period=period)
         except Exception as e:
-            st.error(f"Erreur lors de la récupération des données pour {ticker} ou {ref_ticker} : {e}")
+            st.error(f"Erreur lors du téléchargement des données pour {ticker}: {e}")
+            continue
 
-# Onglets
+        if data.empty:
+            st.warning(f"Aucune donnée disponible pour {ticker}.")
+            continue
+
+        # Calculer la courbe différentielle
+        diff_curve = data['Close'] / ref_close
+
+        # Créer le graphique
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=data.index, y=diff_curve,
+            mode='lines', name=f'{ticker} / {ref_ticker}'
+        ))
+
+        # Ajouter la SMA si cochée
+        if show_sma:
+            sma_diff = diff_curve.rolling(window=sma_period).mean()
+            fig.add_trace(go.Scatter(
+                x=data.index, y=sma_diff,
+                mode='lines',
+                name=f'SMA {sma_period}',
+                line=dict(color='yellow')
+            ))
+
+        fig.update_layout(
+            title=f"Courbe différentielle {ticker} / {ref_ticker} - {period} d'historique",
+            xaxis_title="Date",
+            yaxis_title="Ratio"
+        )
+
+        st.plotly_chart(fig)
+
+# Fonction pour charger une liste à partir d'un fichier texte
+def load_list(filename):
+    if os.path.exists(filename):
+        with open(filename, 'r') as f:
+            return [line.strip() for line in f.readlines()]
+    else:
+        st.warning(f"Le fichier {filename} est introuvable.")
+        return []
+
+# Fonction pour sauvegarder une liste dans un fichier texte
+def save_list(filename, items):
+    with open(filename, 'w') as f:
+        f.writelines([item + '\n' for item in items])
+
+# Définition des onglets
+st.title("Suivi des ETF, Actions et Devises")
+
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Indices", "Indices - différentiels", "Actions", "Actions - différentiels", "Devises"])
 
 # Onglet 1 : Indices
 with tab1:
-    st.subheader("Graphique en chandelier des ETFs")
+    st.subheader("Graphique en chandelier des Indices")
 
-    # Charger la liste des ETFs
+    # Charger la liste des ETF
     selected_etfs = load_list('etf_list.txt')
 
     selected_period = st.radio(
         "Choisissez la profondeur historique des données :",
         ('2 ans', '5 ans'),
         index=1,
-        key="period_chandeliers_etfs"
+        key="period_chandeliers_etf"
     )
     period = "2y" if selected_period == '2 ans' else "5y"
 
-    # Saisie des ETFs
-    etfs_input = st.text_input("Entrez les symboles des ETFs séparés par des virgules", ','.join(selected_etfs), key="etf_input")
+    # Saisie des ETF
+    etfs_input = st.text_input("Entrez les symboles des ETF séparés par des virgules", ','.join(selected_etfs), key="etf_input")
     etfs = [etf.strip() for etf in etfs_input.split(",")]
 
-    # Sauvegarder la liste des ETFs
-    if st.button("Sauvegarder la liste des ETFs"):
+    # Sauvegarder la liste des ETF
+    if st.button("Sauvegarder la liste des ETF"):
         save_list('etf_list.txt', etfs)
 
-    show_sma = st.checkbox('Afficher la moyenne mobile simple (SMA)', value=True, key="sma_etfs")
+    show_sma = st.checkbox('Afficher la moyenne mobile simple (SMA)', value=True, key="sma_etf")
     if show_sma:
-        sma_period = st.slider('Choisissez le nombre de périodes pour la SMA', min_value=5, max_value=100, value=30, key="sma_period_etfs")
+        sma_period = st.slider('Choisissez le nombre de périodes pour la SMA', min_value=5, max_value=100, value=30, key="sma_period_etf")
 
     display_candlestick(etfs, period, show_sma, sma_period, key_prefix="etfs")
 
 # Onglet 2 : Indices - Courbes différentielles
 with tab2:
-    st.subheader("Courbes différentielles entre les ETFs")
+    st.subheader("Courbes différentielles entre les Indices")
 
-    # Charger la liste des ETFs
+    # Charger la liste des ETF
     selected_etfs = load_list('etf_list.txt')
 
-    # Choix de l'ETF de référence
-    etf_ref = st.selectbox('Choisissez l\'ETF de référence pour la division', selected_etfs, index=0, key="etf_ref_diff")
+    # Choisir l'ETF de référence
+    etf_ref = st.selectbox('Choisissez l\'ETF de référence pour la division', selected_etfs, key="etf_ref_diff")
 
     selected_period = st.radio(
         "Choisissez la profondeur historique des données :",
         ('2 ans', '5 ans'),
         index=1,
-        key="period_diff_etfs"
+        key="period_diff_etf"
     )
     period = "2y" if selected_period == '2 ans' else "5y"
 
-    show_sma_diff = st.checkbox('Afficher la moyenne mobile simple (SMA) pour les courbes différentielles', value=True, key="sma_diff_etfs")
+    show_sma_diff = st.checkbox('Afficher la moyenne mobile simple (SMA) pour les courbes différentielles', value=True, key="sma_diff_etf")
     if show_sma_diff:
-        sma_diff_period = st.slider('Choisissez le nombre de périodes pour la SMA des courbes différentielles', min_value=5, max_value=100, value=30, key="sma_diff_period_etfs")
+        sma_diff_period = st.slider('Choisissez le nombre de périodes pour la SMA des courbes différentielles', min_value=5, max_value=100, value=30, key="sma_diff_period_etf")
 
     display_differential_curves(selected_etfs, etf_ref, period, show_sma_diff, sma_diff_period, key_prefix="etfs_diff")
 
@@ -223,11 +233,7 @@ with tab4:
     if show_sma_diff:
         sma_diff_period = st.slider('Choisissez le nombre de périodes pour la SMA des courbes différentielles', min_value=5, max_value=100, value=30, key="sma_diff_period_actions")
 
-    # Affichage des courbes différentielles uniquement si une action de référence est saisie
-    if action_ref:
-        display_differential_curves(selected_actions, action_ref, period, show_sma_diff, sma_diff_period, key_prefix="actions_diff")
-    else:
-        st.warning("Veuillez entrer une action de référence pour afficher les courbes différentielles.")
+    display_differential_curves(selected_actions, action_ref, period, show_sma_diff, sma_diff_period, key_prefix="actions_diff")
 
 # Onglet 5 : Devises
 with tab5:
@@ -245,7 +251,7 @@ with tab5:
     period = "2y" if selected_period == '2 ans' else "5y"
 
     # Saisie des devises
-    devises_input = st.text_input("Entrez les symboles des devises séparés par des virgules", ','.join(selected_devises), key="devise_input")
+    devises_input = st.text_input("Entrez les symboles des devises séparés par des virgules", ','.join(selected_devises), key="devises_input")
     devises = [devise.strip() for devise in devises_input.split(",")]
 
     # Sauvegarder la liste des devises
