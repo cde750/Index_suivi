@@ -17,9 +17,20 @@ def save_list(filename, items):
         for item in items:
             f.write(f"{item}\n")
 
-# Fonction pour afficher les graphiques en chandelier
+# Fonction pour charger les valeurs des lignes horizontales à partir d'un fichier
+def load_action_values(filename):
+    try:
+        with open(filename, 'r') as f:
+            return {line.split(':')[0]: float(line.split(':')[1]) for line in f.readlines()}
+    except FileNotFoundError:
+        return {}
+
+# Fonction pour afficher les graphiques en chandelier avec des lignes horizontales
 def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
     
+    # Charger les valeurs des lignes horizontales
+    action_values = load_action_values('action_values.txt')
+
     # Listes pour définir les préfixes en fonction des tickers
     green_square_list = ['SP5.PA', 'UST.PA', 'MGT.PA', 'WLD.PA', 'JPNH.PA', 'SGQI.PA', 'CRP.PA', 'GC=F']
     red_square_list = ['FDJ.PA', 'PUB.PA','ENGI.PA', 'ORA.PA', 'STLAP.PA', 'CS.PA', 'EN.PA', 'ML.PA', 'DG.PA', 'TTE.PA', 'GLE.PA', 'BNP.PA', 'TFI.PA', ]
@@ -69,6 +80,21 @@ def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
                     line=dict(color='yellow', width=2)
                 ))
 
+            # Ajouter la ligne horizontale si une valeur est spécifiée pour ce ticker
+            if ticker in action_values:
+                fig.add_shape(type="line",
+                              x0=data.index.min(), x1=data.index.max(),
+                              y0=action_values[ticker], y1=action_values[ticker],
+                              line=dict(color="Red", width=2, dash="dash"),
+                              name=f'Valeur seuil {ticker}')
+                fig.add_trace(go.Scatter(
+                    x=[data.index.min()],
+                    y=[action_values[ticker]],
+                    text=[f"Seuil: {action_values[ticker]}"],
+                    mode="text",
+                    showlegend=False
+                ))
+
             fig.update_layout(
                 title=f"Cours de {ticker} - {period} d'historique",
                 xaxis_title='Date',
@@ -78,6 +104,7 @@ def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
             st.plotly_chart(fig)
         except Exception as e:
             st.error(f"Erreur lors de la récupération des données pour {ticker} : {e}")
+
 
 # Fonction pour afficher les courbes différentielles
 def display_differential_curves(tickers, ref_ticker, period, show_sma, sma_period, key_prefix):
