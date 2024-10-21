@@ -20,7 +20,7 @@ def save_list(filename, items):
 # Fonction pour afficher les graphiques en chandelier
 def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
     for ticker in tickers:
-        title_prefix = "⭐ " if ticker in ['SP5.PA', 'UST.PA', 'MGT.PA', 'WLD.PA', 'JPNH.PA', 'SGQI.PA', 'MGT.PA', 'CRP.PA', 'GC=F'] else ""
+        title_prefix = "⭐ " if ticker in ['SP5.PA', 'UST.PA', 'MGT.PA', 'WLD.PA'] else ""
         st.subheader(f"{title_prefix}Cours de {ticker} - {period} d'historique")
 
         # Récupérer les données
@@ -208,8 +208,8 @@ with tab4:
     # Charger la liste des actions
     selected_actions = load_list('action_list.txt')
 
-    # Choix de l'action de référence
-    action_ref = st.text_input('Choisissez l\'action de référence pour la division', selected_actions, index=0, key="action_ref_diff")
+    # Saisie libre de l'action de référence
+    action_ref = st.text_input('Entrez l\'action de référence pour la division', key="action_ref_diff")
 
     selected_period = st.radio(
         "Choisissez la profondeur historique des données :",
@@ -223,7 +223,11 @@ with tab4:
     if show_sma_diff:
         sma_diff_period = st.slider('Choisissez le nombre de périodes pour la SMA des courbes différentielles', min_value=5, max_value=100, value=30, key="sma_diff_period_actions")
 
-    display_differential_curves(selected_actions, action_ref, period, show_sma_diff, sma_diff_period, key_prefix="actions_diff")
+    # Affichage des courbes différentielles uniquement si une action de référence est saisie
+    if action_ref:
+        display_differential_curves(selected_actions, action_ref, period, show_sma_diff, sma_diff_period, key_prefix="actions_diff")
+    else:
+        st.warning("Veuillez entrer une action de référence pour afficher les courbes différentielles.")
 
 # Onglet 5 : Devises
 with tab5:
