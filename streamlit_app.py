@@ -22,7 +22,7 @@ def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
     
     # Listes pour définir les préfixes en fonction des tickers
     green_square_list = ['SP5.PA', 'UST.PA', 'MGT.PA', 'WLD.PA', 'JPNH.PA', 'SGQI.PA', 'CRP.PA', 'GC=F']
-    red_square_list = ['SAN', 'RI', 'PUB','ENGI', 'ORA', 'STLAP', 'CS', 'EN', 'ML', 'DG', 'TTE.PA', 'GLE.PA', 'BNP.PA']
+    red_square_list = ['FDJ.PA', 'PUB.PA','ENGI.PA', 'ORA.PA', 'STLAP.PA', 'CS.PA', 'EN.PA', 'ML.PA', 'DG.PA', 'TTE.PA', 'GLE.PA', 'BNP.PA', 'TFI.PA', ]
 
     for ticker in tickers:
         # Affichage du carré en fonction de l'appartenance aux listes
