@@ -20,7 +20,7 @@ def save_list(filename, items):
 # Fonction pour afficher les graphiques en chandelier
 def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
     for ticker in tickers:
-        title_prefix = "🟩 " if ticker in ['SP5.PA', 'UST.PA', 'MGT.PA', 'WLD.PA'] else ""
+        title_prefix = "🟩 " if ticker in ['SP5.PA', 'UST.PA', 'MGT.PA', 'WLD.PA', 'JPNH.PA', 'SGQI.PA', 'MGT.PA', 'CRP.PA', 'GC=F'] else ""
         st.subheader(f"{title_prefix}Cours de {ticker} - {period} d'historique")
 
         # Récupérer les données
