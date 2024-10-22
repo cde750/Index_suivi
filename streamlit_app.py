@@ -311,8 +311,38 @@ with tab5:
     display_candlestick(devises, period, show_sma, sma_period, key_prefix="devises")
 
 
-    # Onglet 6 : Recherche - Différentiels
+    # Onglet 6 : Recherche
 with tab6:
+    st.subheader("Graphique en chandelier des valeurs recherchées")
+
+    # Charger la liste des valeurs recherchées
+    selected_research = load_list('recherche.txt')
+
+    selected_period = st.radio(
+        "Choisissez la profondeur historique des données :",
+        ('2 ans', '5 ans'),
+        index=1,
+        key="period_chandeliers_research"
+    )
+    period = "2y" if selected_period == '2 ans' else "5y"
+
+    # Saisie des valeurs recherchées
+    research_input = st.text_input("Entrez les symboles des valeurs recherchées séparés par des virgules", ','.join(selected_research), key="research_input")
+    research_items = [item.strip() for item in research_input.split(",")]
+
+    # Sauvegarder la liste des valeurs recherchées
+    if st.button("Sauvegarder la liste des valeurs recherchées"):
+        save_list('recherche.txt', research_items)
+
+    show_sma = st.checkbox('Afficher la moyenne mobile simple (SMA)', value=True, key="sma_research")
+    if show_sma:
+        sma_period = st.slider('Choisissez le nombre de périodes pour la SMA', min_value=5, max_value=100, value=30, key="sma_period_research")
+
+    display_candlestick(research_items, period, show_sma, sma_period, key_prefix="research")
+
+
+# Onglet 7 : Recherche - Différentiels
+with tab7:
     st.subheader("Courbes différentielles entre les éléments de Recherche")
 
     # Charger la liste des éléments de recherche
@@ -349,28 +379,3 @@ with tab6:
         display_differential_curves(selected_recherche, recherche_ref, period_recherche, show_sma_diff_recherche, sma_diff_period_recherche, key_prefix="recherche_diff")
     else:
         st.warning("Veuillez entrer ou sélectionner une référence pour afficher les courbes différentielles.")
-
-
-# Onglet 7 : Recherche - Courbes différentielles
-with tab7:
-    st.subheader("Courbes différentielles entre les valeurs recherchées")
-
-    # Charger la liste des valeurs recherchées
-    selected_research = load_list('recherche.txt')
-
-    # Choix de la valeur de référence pour la division
-    research_ref = st.selectbox('Choisissez la valeur de référence pour la division', selected_research, index=0, key="research_ref_diff")
-
-    selected_period = st.radio(
-        "Choisissez la profondeur historique des données :",
-        ('2 ans', '5 ans'),
-        index=1,
-        key="period_diff_research"
-    )
-    period = "2y" if selected_period == '2 ans' else "5y"
-
-    show_sma_diff = st.checkbox('Afficher la moyenne mobile simple (SMA) pour les courbes différentielles', value=True, key="sma_diff_research")
-    if show_sma_diff:
-        sma_diff_period = st.slider('Choisissez le nombre de périodes pour la SMA des courbes différentielles', min_value=5, max_value=100, value=30, key="sma_diff_period_research")
-
-    display_differential_curves(selected_research, research_ref, period, show_sma_diff, sma_diff_period, key_prefix="research_diff")
