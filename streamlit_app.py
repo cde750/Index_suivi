@@ -25,127 +25,135 @@ def load_action_values(filename):
     except FileNotFoundError:
         return {}
 
-# Cacher les données téléchargées
-@st.cache_data(ttl=60*60*24)  # Cache pour 24 heures (ajustez la durée selon vos besoins)
-def get_ticker_data(ticker, period):
-    data = yf.download(ticker, period=period)
-    if data.empty:
-        return None
-    if not isinstance(data.index, pd.DatetimeIndex):
-        data.index = pd.to_datetime(data.index)
-    return data.resample('W').agg({'Close': 'last', 'Open': 'first', 'High': 'max', 'Low': 'min'})
-
-@st.cache_data(ttl=60*60*24)  # Cache pour 24 heures
-def get_ticker_close_data(ticker, period):
-    data = yf.download(ticker, period=period)
-    if data.empty:
-        return None
-    return data.resample('W').agg({'Close': 'last'})
-
 # Fonction pour afficher les graphiques en chandelier avec des lignes horizontales
 def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
+    
     # Charger les valeurs des lignes horizontales
     action_values = load_action_values('action_values.txt')
 
+    # Listes pour définir les préfixes en fonction des tickers
+    green_square_list = ['SP5.PA', 'UST.PA', 'MGT.PA', 'WLD.PA', 'JPNH.PA', 'SGQI.PA', 'CRP.PA', 'GC=F']
+    red_square_list = ['FDJ.PA', 'ENGI.PA', 'ORA.PA', 'STLAP.PA', 'CS.PA', 'EN.PA', 'DG.PA', 'TTE.PA', 'GLE.PA', 'BNP.PA', 'TFI.PA','GTT.PA','NXI.PA' ]
+
     for ticker in tickers:
-        st.subheader(f"Cours de {ticker} - {period} d'historique")
+        # Affichage du carré en fonction de l'appartenance aux listes
+        if ticker in green_square_list:
+            title_prefix = "🟩 "  # Carré vert
+        elif ticker in red_square_list:
+            title_prefix = "🟥 "  # Carré rouge
+        else:
+            title_prefix = ""
 
-        # Récupérer les données à partir du cache
-        data = get_ticker_data(ticker, period)
-        if data is None:
-            st.warning(f"Aucune donnée trouvée pour {ticker}.")
-            continue
+        st.subheader(f"{title_prefix}Cours de {ticker} - {period} d'historique")
 
-        # Création du graphique en chandelier
-        fig = go.Figure(data=[go.Candlestick(
-            x=data.index,
-            open=data['Open'],
-            high=data['High'],
-            low=data['Low'],
-            close=data['Close'],
-            name=ticker
-        )])
+        # Récupérer les données
+        try:
+            data = yf.download(ticker, period=period)
+            if data.empty:
+                st.warning(f"Aucune donnée trouvée pour {ticker}.")
+                continue  # Passer à l'ETF suivant si pas de données
 
-        # Ajouter la moyenne mobile simple si activée
-        if show_sma:
-            data['SMA'] = data['Close'].rolling(window=sma_period).mean()
-            fig.add_trace(go.Scatter(
+            if not isinstance(data.index, pd.DatetimeIndex):
+                data.index = pd.to_datetime(data.index)
+
+            # Resample les données hebdomadaires
+            data = data.resample('W').agg({'Close': 'last', 'Open': 'first', 'High': 'max', 'Low': 'min'})
+
+            # Création du graphique en chandelier
+            fig = go.Figure(data=[go.Candlestick(
                 x=data.index,
-                y=data['SMA'],
-                mode='lines',
-                name=f'SMA {sma_period} périodes',
-                line=dict(color='yellow', width=2)
-            ))
+                open=data['Open'],
+                high=data['High'],
+                low=data['Low'],
+                close=data['Close'],
+                name=ticker
+            )])
 
-        # Ajouter une ligne horizontale si disponible
-        if ticker in action_values:
-            fig.add_shape(type="line",
-                          x0=data.index.min(), x1=data.index.max(),
-                          y0=action_values[ticker], y1=action_values[ticker],
-                          line=dict(color="Red", width=2, dash="dash"))
-            fig.add_trace(go.Scatter(
-                x=[data.index.min()],
-                y=[action_values[ticker]],
-                text=[f"Seuil: {action_values[ticker]}"],
-                mode="text",
-                showlegend=False
-            ))
+            # Ajouter la moyenne mobile simple si activée
+            if show_sma:
+                data['SMA'] = data['Close'].rolling(window=sma_period).mean()
+                fig.add_trace(go.Scatter(
+                    x=data.index,
+                    y=data['SMA'],
+                    mode='lines',
+                    name=f'SMA {sma_period} périodes',
+                    line=dict(color='yellow', width=2)
+                ))
 
-        fig.update_layout(
-            title=f"Cours de {ticker} - {period} d'historique",
-            xaxis_title='Date',
-            yaxis_title='Prix',
-        )
+            # Ajouter la ligne horizontale si une valeur est spécifiée pour ce ticker
+            if ticker in action_values:
+                fig.add_shape(type="line",
+                              x0=data.index.min(), x1=data.index.max(),
+                              y0=action_values[ticker], y1=action_values[ticker],
+                              line=dict(color="Red", width=2, dash="dash"),
+                              name=f'Valeur seuil {ticker}')
+                fig.add_trace(go.Scatter(
+                    x=[data.index.min()],
+                    y=[action_values[ticker]],
+                    text=[f"Seuil: {action_values[ticker]}"],
+                    mode="text",
+                    showlegend=False
+                ))
 
-        st.plotly_chart(fig)
+            fig.update_layout(
+                title=f"Cours de {ticker} - {period} d'historique",
+                xaxis_title='Date',
+                yaxis_title='Prix',
+            )
+
+            st.plotly_chart(fig)
+        except Exception as e:
+            st.error(f"Erreur lors de la récupération des données pour {ticker} : {e}")
+
 
 # Fonction pour afficher les courbes différentielles
 def display_differential_curves(tickers, ref_ticker, period, show_sma, sma_period, key_prefix):
-    ref_data = get_ticker_close_data(ref_ticker, period)
-    if ref_data is None:
-        st.warning(f"Aucune donnée trouvée pour {ref_ticker}.")
-        return
-
     for ticker in tickers:
         if ticker == ref_ticker:
             continue
-
+        
         st.subheader(f"Différentiel entre {ticker} et {ref_ticker}")
 
-        ticker_data = get_ticker_close_data(ticker, period)
-        if ticker_data is None:
-            st.warning(f"Aucune donnée trouvée pour {ticker}.")
-            continue
+        # Récupérer les données
+        try:
+            ref_data = yf.download(ref_ticker, period=period).resample('W').agg({'Close': 'last'})
+            ticker_data = yf.download(ticker, period=period).resample('W').agg({'Close': 'last'})
+            
+            if ref_data.empty or ticker_data.empty:
+                st.warning(f"Aucune donnée trouvée pour {ticker} ou {ref_ticker}.")
+                continue
 
-        # Calcul du différentiel
-        diff_data = ticker_data['Close'] / ref_data['Close']
+            # Calcul du différentiel
+            diff_data = ticker_data['Close'] / ref_data['Close']
 
-        # Création du graphique différentiel
-        fig = go.Figure(data=[go.Scatter(
-            x=diff_data.index,
-            y=diff_data,
-            mode='lines',
-            name=f'Différentiel {ticker}/{ref_ticker}'
-        )])
-
-        # Ajouter la moyenne mobile simple si activée
-        if show_sma:
-            diff_data_sma = diff_data.rolling(window=sma_period).mean()
-            fig.add_trace(go.Scatter(
+            # Création du graphique différentiel
+            fig = go.Figure(data=[go.Scatter(
                 x=diff_data.index,
-                y=diff_data_sma,
+                y=diff_data,
                 mode='lines',
-                name=f'SMA {sma_period} périodes',
-                line=dict(color='yellow', width=2)
-            ))
+                name=f'Différentiel {ticker}/{ref_ticker}'
+            )])
 
-        fig.update_layout(
-            title=f"Différentiel entre {ticker} et {ref_ticker}",
-            xaxis_title='Date',
-            yaxis_title='Ratio',
-        )
+            # Ajouter la moyenne mobile simple si activée
+            if show_sma:
+                diff_data_sma = diff_data.rolling(window=sma_period).mean()
+                fig.add_trace(go.Scatter(
+                    x=diff_data.index,
+                    y=diff_data_sma,
+                    mode='lines',
+                    name=f'SMA {sma_period} périodes',
+                    line=dict(color='yellow', width=2)
+                ))
 
-        st.plotly_chart(fig)
+            fig.update_layout(
+                title=f"Différentiel entre {ticker} et {ref_ticker}",
+                xaxis_title='Date',
+                yaxis_title='Ratio',
+            )
+
+            st.plotly_chart(fig)
+        except Exception as e:
+            st.error(f"Erreur lors de la récupération des données pour {ticker} ou {ref_ticker} : {e}")
 
 # Onglets
 tab1, tab2, tab3, tab4, tab5 , tab6, tab7 = st.tabs(["Indices", "Indices - différentiels", "Actions", "Actions - différentiels", "Devises", "Recherche", "Recherche - différentiels"])
