@@ -247,8 +247,19 @@ with tab4:
     # Charger la liste des actions
     selected_actions = load_list('action_list.txt')
 
-    # Saisie libre de l'action de référence
-    action_ref = st.text_input('Entrez l\'action de référence pour la division', key="action_ref_diff")
+    # Ajouter un sélecteur pour l'action de référence ou un indice
+    ref_choice = st.selectbox(
+        "Choisissez l'action de référence ou un indice",
+        ['Manuel', '^FCHI (CAC 40)', '^STOXX (Euro Stoxx 50)'],
+        key="ref_choice_diff"
+    )
+
+    # Si l'utilisateur choisit "Manuel", on affiche un champ pour saisir l'action de référence
+    if ref_choice == 'Manuel':
+        action_ref = st.text_input('Entrez l\'action de référence pour la division', key="action_ref_diff")
+    else:
+        # Définir l'action de référence en fonction de la sélection de l'utilisateur
+        action_ref = '^FCHI' if ref_choice == '^FCHI (CAC 40)' else '^STOXX'
 
     selected_period = st.radio(
         "Choisissez la profondeur historique des données :",
@@ -267,6 +278,7 @@ with tab4:
         display_differential_curves(selected_actions, action_ref, period, show_sma_diff, sma_diff_period, key_prefix="actions_diff")
     else:
         st.warning("Veuillez entrer une action de référence pour afficher les courbes différentielles.")
+
 
 # Onglet 5 : Devises
 with tab5:
