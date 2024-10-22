@@ -156,7 +156,7 @@ def display_differential_curves(tickers, ref_ticker, period, show_sma, sma_perio
             st.error(f"Erreur lors de la récupération des données pour {ticker} ou {ref_ticker} : {e}")
 
 # Onglets
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Indices", "Indices - différentiels", "Actions", "Actions - différentiels", "Devises"])
+tab1, tab2, tab3, tab4, tab5 , tab6, tab7 = st.tabs(["Indices", "Indices - différentiels", "Actions", "Actions - différentiels", "Devises", "Recherche", "Recherche - différentiels"])
 
 # Onglet 1 : Indices
 with tab1:
@@ -247,19 +247,19 @@ with tab4:
     # Charger la liste des actions
     selected_actions = load_list('action_list.txt')
 
-    # Ajouter un sélecteur pour l'action de référence ou un indice
-    ref_choice = st.selectbox(
-        "Choisissez l'action de référence ou un indice",
-        ['Manuel', '^FCHI (CAC 40)', '^STOXX (Euro Stoxx 50)'],
-        key="ref_choice_diff"
+    # Ajouter un radio pour choisir la source de l'action de référence
+    ref_choice = st.radio(
+        "Choisissez la référence pour la division :", 
+        ('Entrer une action manuellement', '^FCHI', '^STOXX'), 
+        key="ref_choice"
     )
 
-    # Si l'utilisateur choisit "Manuel", on affiche un champ pour saisir l'action de référence
-    if ref_choice == 'Manuel':
+    # Si l'utilisateur choisit d'entrer une action manuellement, afficher une zone de texte
+    if ref_choice == 'Entrer une action manuellement':
         action_ref = st.text_input('Entrez l\'action de référence pour la division', key="action_ref_diff")
     else:
-        # Définir l'action de référence en fonction de la sélection de l'utilisateur
-        action_ref = '^FCHI' if ref_choice == '^FCHI (CAC 40)' else '^STOXX'
+        # Si l'utilisateur choisit ^FCHI ou ^STOXX, utiliser cette valeur
+        action_ref = ref_choice
 
     selected_period = st.radio(
         "Choisissez la profondeur historique des données :",
@@ -273,11 +273,12 @@ with tab4:
     if show_sma_diff:
         sma_diff_period = st.slider('Choisissez le nombre de périodes pour la SMA des courbes différentielles', min_value=5, max_value=100, value=30, key="sma_diff_period_actions")
 
-    # Affichage des courbes différentielles uniquement si une action de référence est saisie
+    # Affichage des courbes différentielles uniquement si une action de référence est sélectionnée ou entrée
     if action_ref:
         display_differential_curves(selected_actions, action_ref, period, show_sma_diff, sma_diff_period, key_prefix="actions_diff")
     else:
-        st.warning("Veuillez entrer une action de référence pour afficher les courbes différentielles.")
+        st.warning("Veuillez entrer ou sélectionner une action de référence pour afficher les courbes différentielles.")
+
 
 
 # Onglet 5 : Devises
@@ -308,3 +309,57 @@ with tab5:
         sma_period = st.slider('Choisissez le nombre de périodes pour la SMA', min_value=5, max_value=100, value=30, key="sma_period_devises")
 
     display_candlestick(devises, period, show_sma, sma_period, key_prefix="devises")
+
+
+    # Onglet 6 : Recherche
+with tab6:
+    st.subheader("Graphique en chandelier des valeurs recherchées")
+
+    # Charger la liste des valeurs recherchées
+    selected_research = load_list('recherche.txt')
+
+    selected_period = st.radio(
+        "Choisissez la profondeur historique des données :",
+        ('2 ans', '5 ans'),
+        index=1,
+        key="period_chandeliers_research"
+    )
+    period = "2y" if selected_period == '2 ans' else "5y"
+
+    # Saisie des valeurs recherchées
+    research_input = st.text_input("Entrez les symboles des valeurs recherchées séparés par des virgules", ','.join(selected_research), key="research_input")
+    research_items = [item.strip() for item in research_input.split(",")]
+
+    # Sauvegarder la liste des valeurs recherchées
+    if st.button("Sauvegarder la liste des valeurs recherchées"):
+        save_list('recherche.txt', research_items)
+
+    show_sma = st.checkbox('Afficher la moyenne mobile simple (SMA)', value=True, key="sma_research")
+    if show_sma:
+        sma_period = st.slider('Choisissez le nombre de périodes pour la SMA', min_value=5, max_value=100, value=30, key="sma_period_research")
+
+    display_candlestick(research_items, period, show_sma, sma_period, key_prefix="research")
+
+# Onglet 7 : Recherche - Courbes différentielles
+with tab7:
+    st.subheader("Courbes différentielles entre les valeurs recherchées")
+
+    # Charger la liste des valeurs recherchées
+    selected_research = load_list('recherche.txt')
+
+    # Choix de la valeur de référence pour la division
+    research_ref = st.selectbox('Choisissez la valeur de référence pour la division', selected_research, index=0, key="research_ref_diff")
+
+    selected_period = st.radio(
+        "Choisissez la profondeur historique des données :",
+        ('2 ans', '5 ans'),
+        index=1,
+        key="period_diff_research"
+    )
+    period = "2y" if selected_period == '2 ans' else "5y"
+
+    show_sma_diff = st.checkbox('Afficher la moyenne mobile simple (SMA) pour les courbes différentielles', value=True, key="sma_diff_research")
+    if show_sma_diff:
+        sma_diff_period = st.slider('Choisissez le nombre de périodes pour la SMA des courbes différentielles', min_value=5, max_value=100, value=30, key="sma_diff_period_research")
+
+    display_differential_curves(selected_research, research_ref, period, show_sma_diff, sma_diff_period, key_prefix="research_diff")
