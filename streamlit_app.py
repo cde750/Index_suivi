@@ -351,7 +351,7 @@ with tab7:
     # Ajouter un radio pour choisir la source de la référence
     ref_choice_recherche = st.radio(
         "Choisissez la référence pour la division :", 
-        ('Entrer une action ou indice manuellement', '^FCHI', '^STOXX'), 
+        ('Entrer une action ou indice manuellement', '^FCHI', '^STOXX', '^SPX'), 
         key="ref_choice_recherche"
     )
 
