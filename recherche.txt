@@ -1,13 +1,9 @@
-<<<<<<< HEAD
 AMZN
 TSLA
 AAPL
 NVDA
 MSFT
-=======
-NVDA
-msft
-amzn
-tsla
-aapl
->>>>>>> 037e2b23ccb4d5860a49292907a4c38bb3c764ed
+META
+GOOGL
+TSLA
+JPM
