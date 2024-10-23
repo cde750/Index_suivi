@@ -249,8 +249,19 @@ with tab4:
     # Charger la liste des Actions
     selected_actions = load_list('actions_list.txt')
 
-    # Choix de l'Action de référence
-    action_ref = st.selectbox('Choisissez l\'Action de référence pour la division', selected_actions, index=0, key="action_ref_diff")
+     # Ajouter un radio pour choisir la source de l'action de référence
+    ref_choice = st.radio(
+        "Choisissez la référence pour la division :", 
+        ('Entrer une action manuellement', '^FCHI','^STOXX50E', '^SPX'), 
+        key="ref_choice"
+    )
+
+    # Si l'utilisateur choisit d'entrer une action manuellement, afficher une zone de texte
+    if ref_choice == 'Entrer une action manuellement':
+        action_ref = st.text_input('Entrez l\'action de référence pour la division', key="action_ref_diff")
+    else:
+        # Si l'utilisateur choisit ^FCHI ou ^STOXX, utiliser cette valeur
+        action_ref = ref_choice
 
     selected_period = st.radio(
         "Choisissez la profondeur historique des données :",
@@ -331,8 +342,19 @@ with tab7:
     # Charger la liste des symboles
     selected_recherche = load_list('recherche_list.txt')
 
-    # Choix du symbole de référence
-    recherche_ref = st.selectbox('Choisissez le symbole de référence pour la division', selected_recherche, index=0, key="recherche_ref_diff")
+    # Ajouter un radio pour choisir la source de la référence
+    ref_choice_recherche = st.radio(
+        "Choisissez la référence pour la division :", 
+        ('Entrer une action ou indice manuellement', '^FCHI', '^STOXX50E', '^SPX'), 
+        key="ref_choice_recherche"
+    )
+
+    # Si l'utilisateur choisit d'entrer manuellement, afficher une zone de texte
+    if ref_choice_recherche == 'Entrer une action ou indice manuellement':
+        recherche_ref = st.text_input('Entrez l\'action ou l\'indice de référence pour la division', key="recherche_ref_diff")
+    else:
+        # Si l'utilisateur choisit ^FCHI ou ^STOXX, utiliser cette valeur
+        recherche_ref = ref_choice_recherche
 
     selected_period = st.radio(
         "Choisissez la profondeur historique des données :",
