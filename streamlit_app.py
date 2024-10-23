@@ -38,24 +38,14 @@ def load_action_values(filename):
 
 # Fonction pour afficher les graphiques en chandelier avec des lignes horizontales
 def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
-    
     # Charger les valeurs des lignes horizontales
     action_values = load_action_values('action_values.txt')
 
-    # Listes pour définir les préfixes en fonction des tickers
-    green_square_list = ['SP5.PA', 'UST.PA', 'MGT.PA', 'WLD.PA', 'JPNH.PA', 'SGQI.PA', 'CRP.PA', 'GC=F']
-    red_square_list = ['FDJ.PA', 'ENGI.PA', 'ORA.PA', 'STLAP.PA', 'CS.PA', 'EN.PA', 'DG.PA', 'TTE.PA', 'GLE.PA', 'BNP.PA', 'TFI.PA','GTT.PA','NXI.PA' ]
-
     for ticker in tickers:
-        # Affichage du carré en fonction de l'appartenance aux listes
-        if ticker in green_square_list:
-            title_prefix = "🟩 "  # Carré vert
-        elif ticker in red_square_list:
-            title_prefix = "🟥 "  # Carré rouge
-        else:
-            title_prefix = ""
+        # Préfixe pour chaque ticker
+        unique_key = f"{key_prefix}_{ticker}"
 
-        st.subheader(f"{title_prefix}Cours de {ticker} - {period} d'historique")
+        st.subheader(f"Cours de {ticker} - {period} d'historique")
 
         # Récupérer les données en utilisant la fonction mise en cache
         data = fetch_data(ticker, period)
@@ -63,9 +53,6 @@ def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
         if data is None or data.empty:
             st.warning(f"Aucune donnée trouvée pour {ticker}.")
             continue
-
-        if not isinstance(data.index, pd.DatetimeIndex):
-            data.index = pd.to_datetime(data.index)
 
         # Resample les données hebdomadaires
         data = data.resample('W').agg({'Close': 'last', 'Open': 'first', 'High': 'max', 'Low': 'min'})
@@ -112,14 +99,18 @@ def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
             yaxis_title='Prix',
         )
 
-        st.plotly_chart(fig)
+        # Utilisation de `key=unique_key` pour rendre chaque chart unique
+        st.plotly_chart(fig, key=unique_key)
+
 
 # Fonction pour afficher les courbes différentielles
 def display_differential_curves(tickers, ref_ticker, period, show_sma, sma_period, key_prefix):
     for ticker in tickers:
         if ticker == ref_ticker:
             continue
-        
+
+        unique_key = f"{key_prefix}_{ticker}_diff"
+
         st.subheader(f"Différentiel entre {ticker} et {ref_ticker}")
 
         # Récupérer les données en utilisant la fonction mise en cache
@@ -129,6 +120,10 @@ def display_differential_curves(tickers, ref_ticker, period, show_sma, sma_perio
         if ref_data is None or ticker_data is None or ref_data.empty or ticker_data.empty:
             st.warning(f"Aucune donnée trouvée pour {ticker} ou {ref_ticker}.")
             continue
+
+        # Resample des données en semaines 
+        ref_data = ref_data.resample('W').agg({'Close': 'last'})
+        ticker_data = ticker_data.resample('W').agg({'Close': 'last'})
 
         # Calcul du différentiel
         diff_data = ticker_data['Close'] / ref_data['Close']
@@ -158,7 +153,9 @@ def display_differential_curves(tickers, ref_ticker, period, show_sma, sma_perio
             yaxis_title='Ratio',
         )
 
-        st.plotly_chart(fig)
+        # Utilisation de `key=unique_key` pour rendre chaque chart unique
+        st.plotly_chart(fig, key=unique_key)
+
 
 # Onglets
 tab1, tab2, tab3, tab4, tab5 , tab6, tab7 = st.tabs(["Indices", "Indices - différentiels", "Actions", "Actions - différentiels", "Devises", "Recherche", "Recherche - différentiels"])
