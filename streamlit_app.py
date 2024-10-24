@@ -252,7 +252,7 @@ with tab4:
      # Ajouter un radio pour choisir la source de l'action de référence
     ref_choice = st.radio(
         "Choisissez la référence pour la division :", 
-        ('Entrer une action manuellement', '^FCHI','^STOXX50E', '^SPX'), 
+        ('^FCHI','^STOXX50E', '^SPX','Entrer une action manuellement'), 
         key="ref_choice"
     )
 
@@ -345,7 +345,7 @@ with tab7:
     # Ajouter un radio pour choisir la source de la référence
     ref_choice_recherche = st.radio(
         "Choisissez la référence pour la division :", 
-        ('Entrer une action ou indice manuellement', '^FCHI', '^STOXX50E', '^SPX'), 
+        ('^FCHI', '^STOXX50E', '^SPX','Entrer une action ou indice manuellement'), 
         key="ref_choice_recherche"
     )
 
