@@ -9,8 +9,8 @@ def get_annual_dividends(ticker_symbol, start_year=2023):
     dividends = ticker.dividends
 
     # Afficher les dividendes bruts pour vérifier leur structure
-    st.write(f"Dividendes bruts pour {ticker_symbol} :")
-    st.write(dividends)
+    #st.write(f"Dividendes bruts pour {ticker_symbol} :")
+    #st.write(dividends)
 
     if not dividends.empty:
         # Convertir l'index en dates si nécessaire
