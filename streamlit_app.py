@@ -2,6 +2,8 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.graph_objs as go
+from dividend import get_dividends  # Fonction pour obtenir les dividendes par ticker
+from rend import dividendes_ratio  # Importer le ratio dividendes/action
 
 # Fonction mise en cache pour télécharger les données de yfinance
 @st.cache_data
@@ -41,13 +43,36 @@ def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
     # Charger les valeurs des lignes horizontales
     action_values = load_action_values('action_values.txt')
 
+    # Listes pour définir les préfixes en fonction des tickers
+    green_square_list = ['SP5.PA', 'UST.PA', 'MGT.PA', 'WLD.PA', 'JPNH.PA', 'SGQI.PA', 'CRP.PA', 'GC=F']
+    red_square_list = ['FDJ.PA', 'ENGI.PA', 'ORA.PA', 'STLAP.PA', 'CS.PA', 'EN.PA', 'DG.PA', 'TTE.PA', 'GLE.PA', 'BNP.PA', 'TFI.PA','GTT.PA','NXI.PA']
+
     for ticker in tickers:
         # Préfixe pour chaque ticker
         unique_key = f"{key_prefix}_{ticker}"
 
-        st.subheader(f"Cours de {ticker} - {period} d'historique")
+        # Déterminer le préfixe d'icône en fonction des listes de couleurs
+        if ticker in green_square_list:
+            title_prefix = "🟩 "  # Carré vert
+        elif ticker in red_square_list:
+            title_prefix = "🟥 "  # Carré rouge
+        else:
+            title_prefix = ""
 
-        # Récupérer les données en utilisant la fonction mise en cache
+        # Récupérer le rendement pour le ticker, si disponible
+        yield_percentage = dividendes_ratio.get(ticker, None)  # None si le rendement est introuvable
+
+        # Titre principal sans rendement
+        st.subheader(f"{title_prefix}Cours de {ticker} - {period} d'historique")
+
+         # Afficher le rendement en sous-titre, avec mise en couleur conditionnelle
+        if yield_percentage is not None:
+            # Affiche en orange si le rendement dépasse 5 %
+            color = "orange" if yield_percentage > 5 else "default"
+            st.markdown(f"<span style='color:{color}; font-weight:bold;'>Rendement : {yield_percentage}%</span>", unsafe_allow_html=True)
+
+
+        # Récupérer les données de cours pour le ticker
         data = fetch_data(ticker, period)
         
         if data is None or data.empty:
@@ -94,14 +119,13 @@ def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
             ))
 
         fig.update_layout(
-            title=f"Cours de {ticker} - {period} d'historique",
+            #title=f"{title_prefix}Cours de {ticker} - {period} d'historique",
             xaxis_title='Date',
             yaxis_title='Prix',
         )
 
         # Utilisation de `key=unique_key` pour rendre chaque chart unique
         st.plotly_chart(fig, key=unique_key)
-
 
 # Fonction pour afficher les courbes différentielles
 def display_differential_curves(tickers, ref_ticker, period, show_sma, sma_period, key_prefix):
