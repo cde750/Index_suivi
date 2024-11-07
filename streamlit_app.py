@@ -120,6 +120,7 @@ def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
 
         fig.update_layout(
             #title=f"{title_prefix}Cours de {ticker} - {period} d'historique",
+            title=f"Rendement : {yield_percentage}%",
             xaxis_title='Date',
             yaxis_title='Prix',
         )
