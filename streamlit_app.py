@@ -66,12 +66,13 @@ def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
         st.subheader(f"{title_prefix}Cours de {ticker} - {period} d'historique")
 
          # Afficher le rendement en sous-titre, avec mise en couleur conditionnelle
-        if yield_percentage is not None:
+        #if yield_percentage is not None:
             # Affiche en orange si le rendement dépasse 5 %
-            color = "orange" if yield_percentage > 5 else "default"
-            st.markdown(f"<span style='color:{color}; font-weight:bold;'>Rendement : {yield_percentage}%</span>", unsafe_allow_html=True)
-
-
+            # color = "orange" if yield_percentage > 5 else "default"
+            # st.markdown(f"<span style='color:{color}; font-weight:bold;'>Rendement : {yield_percentage}%</span>", unsafe_allow_html=True)
+            #st.subheader(f"Rendement : {yield_percentage} %")
+        
+        title_rendement = f"Rendement : {yield_percentage} %" if yield_percentage is not None else ""
         # Récupérer les données de cours pour le ticker
         data = fetch_data(ticker, period)
         
@@ -120,7 +121,7 @@ def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
 
         fig.update_layout(
             #title=f"{title_prefix}Cours de {ticker} - {period} d'historique",
-            title=f"Rendement : {yield_percentage}%",
+            title=title_rendement,
             xaxis_title='Date',
             yaxis_title='Prix',
         )
