@@ -39,4 +39,4 @@ for ticker, dividends_df in all_dividends.items():
             dividendes_ratio[ticker] = round(ratio, 2)  # Arrondir à deux décimales pour plus de lisibilité
 
 # Afficher les résultats dans Streamlit
-st.write(f"Ratio Dividende {reference_year} / Valeur de l'Action pour chaque Ticker (en %):", dividendes_ratio)
+#st.write(f"Ratio Dividende {reference_year} / Valeur de l'Action pour chaque Ticker (en %):", dividendes_ratio)
