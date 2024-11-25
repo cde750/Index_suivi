@@ -124,6 +124,7 @@ def display_candlestick(tickers, period, show_sma, sma_period, key_prefix):
             title=title_rendement,
             xaxis_title='Date',
             yaxis_title='Prix',
+            xaxis=dict(rangeslider=dict(visible=False))
         )
 
         # Utilisation de `key=unique_key` pour rendre chaque chart unique
