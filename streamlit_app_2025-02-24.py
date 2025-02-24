@@ -10,8 +10,7 @@ from rend import dividendes_ratio  # Importer le ratio dividendes/action
 def fetch_data(ticker, period):
     try:
         # Télécharger les données depuis yfinance
-        data = yf.download(ticker, period=period, auto_adjust =True)
-        data = data.xs(ticker, axis=1, level='Ticker')
+        data = yf.download(ticker, period=period)
         return data
     except Exception as e:
         st.error(f"Erreur lors de la récupération des données pour {ticker} : {e}")
