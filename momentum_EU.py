@@ -57,7 +57,7 @@ from io import StringIO
 
 @st.cache_data
 def get_sp500_tickers():
-    """Récupère la liste des tickers S&P 500 depuis Wikipedia."""
+    """Récupère la liste des tickers EURO STOXX 50 depuis Wikipedia."""
     url = "https://en.wikipedia.org/wiki/EURO_STOXX_50"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -66,14 +66,26 @@ def get_sp500_tickers():
     }
     response = requests.get(url, headers=headers)
     response.raise_for_status()  # lève une erreur si problème
-    
-    table = pd.read_html(StringIO(response.text))[0]
+
+    # Lire tous les tableaux de la page
+    tables = pd.read_html(StringIO(response.text))
+
+    # Trouver le tableau qui contient la colonne "Ticker"
+    table = None
+    for t in tables:
+        if "Ticker" in t.columns:
+            table = t
+            break
+
+    if table is None:
+        raise ValueError("Impossible de trouver le tableau des constituants.")
+
+    # Les tickers sont déjà au format Yahoo Finance (ex: ADS.DE, ADYEN.AS)
     tickers = table["Ticker"].tolist()
-    sectors = dict(zip(table["Ticker"],
-                       table["GICS Sector"]))
-    st.write(table)
-    st.write(tickers)
-    st.write(sectors)
+
+    # Dictionnaire ticker -> secteur
+    sectors = dict(zip(table["Ticker"], table["Sector"]))
+
     return tickers, sectors
 
 @st.cache_data(ttl=86400, show_spinner=False)
