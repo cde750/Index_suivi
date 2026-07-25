@@ -86,6 +86,12 @@ def get_sp500_tickers():
     # Dictionnaire ticker -> secteur
     sectors = dict(zip(table["Ticker"], table["Sector"]))
 
+    # --- DEBUG (à retirer) ---
+    table.to_csv("debug.csv", index=False)
+    print(tickers)
+    # --- fin DEBUG ---
+
+    
     return tickers, sectors
 
 @st.cache_data(ttl=86400, show_spinner=False)
