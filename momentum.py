@@ -144,11 +144,22 @@ def run_backtest(prices, lookback, skip, n_stocks, rebal_freq,
         cost = turnover * 2 * cost_bps / 10000  # achat + vente
         prev_weights = w
 
-        # --- Rendements jusqu'au prochain rebalancement ---
+                # --- Rendements jusqu'au prochain rebalancement ---
         next_date = rebal_dates[i + 1] if i + 1 < len(rebal_dates) else prices.index[-1]
-        period = daily_rets.loc[date:next_date, w.index].iloc[1:]
-        if period.empty:
+
+        # Prix (pas les rendements) sur la période, pour les tickers sélectionnés
+        px = prices.loc[date:next_date, w.index]
+
+        # 🔑 Nettoyage : forward-fill les trous (jours fériés décalés),
+        #    puis on retire les lignes encore vides en tête
+        px = px.ffill()
+        px = px.dropna(axis=0, how="any")   # sécurité : aucune ligne avec NaN résiduel
+        if len(px) < 2:
             continue
+
+        # Rendements propres à partir des prix nettoyés
+        period = px.pct_change().iloc[1:]
+
         # Dérive des poids intra-période (buy & hold entre rebalancements)
         cum = (1 + period).cumprod()
         port_val = (cum * w).sum(axis=1)
