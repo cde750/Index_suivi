@@ -68,8 +68,8 @@ def get_sp500_tickers():
     response.raise_for_status()  # lève une erreur si problème
     
     table = pd.read_html(StringIO(response.text))[0]
-    tickers = table["Ticker"].str.replace(".", "-", regex=False).tolist()
-    sectors = dict(zip(table["Ticker"].str.replace(".", "-", regex=False),
+    tickers = table["Ticker"].tolist()
+    sectors = dict(zip(table["Ticker"],
                        table["GICS Sector"]))
     return tickers, sectors
 
