@@ -1,4 +1,4 @@
-´"""
+"""
 Application Streamlit - Stratégie Momentum S&P 500
 Signal 12-1 classique avec paramètres configurables.
 Lancer avec : streamlit run momentum_app.py
