@@ -267,7 +267,7 @@ if run:
     fig_dd.add_trace(go.Scatter(x=dd_strat.index, y=dd_strat, fill="tozeroy",
                                 name="Momentum"))
     fig_dd.add_trace(go.Scatter(x=dd_spy.index, y=dd_spy,
-                                name="SPY", line=dict(dash="dash")))
+                                name="SXRT.DE", line=dict(dash="dash")))
     fig_dd.update_layout(title="Drawdown", yaxis_tickformat=".0%", height=350)
     st.plotly_chart(fig_dd, use_container_width=True)
 
