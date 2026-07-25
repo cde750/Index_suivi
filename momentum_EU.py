@@ -100,6 +100,20 @@ def download_prices(tickers, start, end):
         prices = prices.to_frame()
     # Nettoyage : retirer les colonnes trop incomplètes
     prices = prices.dropna(axis=1, thresh=int(len(prices) * 0.6))
+    
+     # --- DEBUG (à retirer) ---
+    st.write("### DEBUG download_prices")
+    st.write("Période demandée :", start, "→", end)
+    st.write("shape (lignes, colonnes) :", prices.shape)
+    st.write("colonnes conservées :", list(prices.columns))
+    st.write("Tableau complet des prix :")
+    st.dataframe(prices)                    # TOUTES les valeurs
+    st.write("Premières lignes :", prices.head())
+    st.write("Dernières lignes :", prices.tail())
+    st.write("Statistiques :", prices.describe())
+    # --- fin DEBUG ---
+    
+    
     return prices
 
 
