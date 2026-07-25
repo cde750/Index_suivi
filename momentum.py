@@ -52,16 +52,26 @@ with st.sidebar:
 # ---------------------------------------------------------------
 # Fonctions données (mises en cache)
 # ---------------------------------------------------------------
-@st.cache_data(ttl=86400, show_spinner=False)
+import requests
+from io import StringIO
+
+@st.cache_data
 def get_sp500_tickers():
     """Récupère la liste des tickers S&P 500 depuis Wikipedia."""
     url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-    table = pd.read_html(url)[0]
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                      "AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Chrome/120.0.0.0 Safari/537.36"
+    }
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()  # lève une erreur si problème
+    
+    table = pd.read_html(StringIO(response.text))[0]
     tickers = table["Symbol"].str.replace(".", "-", regex=False).tolist()
     sectors = dict(zip(table["Symbol"].str.replace(".", "-", regex=False),
                        table["GICS Sector"]))
     return tickers, sectors
-
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def download_prices(tickers, start, end):
