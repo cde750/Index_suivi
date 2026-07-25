@@ -71,6 +71,9 @@ def get_sp500_tickers():
     tickers = table["Ticker"].tolist()
     sectors = dict(zip(table["Ticker"],
                        table["GICS Sector"]))
+    st.write(table)
+    st.write(tickers)
+    st.write(sectors)
     return tickers, sectors
 
 @st.cache_data(ttl=86400, show_spinner=False)
