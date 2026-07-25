@@ -98,10 +98,13 @@ def download_prices(tickers, start, end):
     prices = data["Close"]
     if isinstance(prices, pd.Series):
         prices = prices.to_frame()
-    # Nettoyage : retirer les colonnes trop incomplètes
     prices = prices.dropna(axis=1, thresh=int(len(prices) * 0.6))
 
-    return prices
+    # 🔑 Aligne tous les tickers sur un calendrier commun et bouche les
+    #    petits trous (jours fériés européens décalés)
+    prices = prices.ffill(limit=5)
+
+    return prices   # ⚠️ tu avais oublié le return !
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
