@@ -27,7 +27,7 @@ st.caption(
 with st.sidebar:
     st.header("⚙️ Paramètres")
 
-    start_date = st.date_input("Date de début", value=pd.to_datetime("2015-01-01"))
+    start_date = st.date_input("Date de début", value=pd.to_datetime("2025-01-01"))
     end_date = st.date_input("Date de fin", value=pd.to_datetime("today"))
 
     st.subheader("Signal momentum")
