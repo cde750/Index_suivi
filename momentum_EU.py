@@ -1,5 +1,5 @@
 """
-Application Streamlit - Stratégie Momentum S&P 500
+Application Streamlit - Stratégie Momentum EURO STOXX 50
 Signal 12-1 classique avec paramètres configurables.
 Lancer avec : streamlit run momentum_app.py
 """
@@ -14,10 +14,10 @@ from datetime import datetime
 # ---------------------------------------------------------------
 # Configuration de la page
 # ---------------------------------------------------------------
-st.set_page_config(page_title="Momentum S&P 500", layout="wide", page_icon="📈")
-st.title("📈 Backtest Stratégie Momentum — S&P 500")
+st.set_page_config(page_title="Momentum EURO STOXX 50", layout="wide", page_icon="📈")
+st.title("📈 Backtest Stratégie Momentum — EURO STOXX 50")
 st.caption(
-    "⚠️ Univers = composition **actuelle** du S&P 500 → biais du survivant. "
+    "⚠️ Univers = composition **actuelle** de EURO STOXX 50 → biais du survivant. "
     "Résultats à interpréter avec prudence. Usage éducatif uniquement."
 )
 
@@ -103,7 +103,7 @@ def download_prices(tickers, start, end):
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def download_benchmark(start, end):
-    spy = yf.download("SPY", start=start, end=end,
+    spy = yf.download("SXRT.DE", start=start, end=end,
                       auto_adjust=True, progress=False)["Close"]
     if isinstance(spy, pd.DataFrame):
         spy = spy.iloc[:, 0]
