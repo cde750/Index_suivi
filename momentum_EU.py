@@ -280,7 +280,7 @@ if run:
     }, index=yearly_strat.index.year)
     fig_yr = go.Figure()
     fig_yr.add_trace(go.Bar(x=yearly.index, y=yearly["Momentum"], name="Momentum"))
-    fig_yr.add_trace(go.Bar(x=yearly.index, y=yearly["SPY"], name="SPY"))
+    fig_yr.add_trace(go.Bar(x=yearly.index, y=yearly["SXRT.DE"], name="SXRT.DE"))
     fig_yr.update_layout(title="Rendements annuels", yaxis_tickformat=".0%",
                          barmode="group", height=350)
     st.plotly_chart(fig_yr, use_container_width=True)
