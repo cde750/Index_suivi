@@ -248,7 +248,7 @@ if run:
     st.caption(f"Turnover moyen par rebalancement : {avg_turnover:.1%}")
 
     # --- Tableau comparatif ---
-    comp = pd.DataFrame({"Momentum": metrics_strat, "SPY (Buy & Hold)": metrics_spy})
+    comp = pd.DataFrame({"Momentum": metrics_strat, "SXRT.DE (Buy & Hold)": metrics_spy})
     st.dataframe(comp, use_container_width=True)
 
     # --- Courbe de performance ---
@@ -256,7 +256,7 @@ if run:
     fig.add_trace(go.Scatter(x=cum_strat.index, y=cum_strat,
                              name="Stratégie Momentum", line=dict(width=2)))
     fig.add_trace(go.Scatter(x=cum_spy.index, y=cum_spy,
-                             name="SPY", line=dict(width=2, dash="dash")))
+                             name="SXRT.DE", line=dict(width=2, dash="dash")))
     fig.update_layout(title="Performance cumulée (base 1)",
                       yaxis_type="log", height=500,
                       legend=dict(orientation="h", y=1.05))
@@ -276,11 +276,11 @@ if run:
     yearly_spy = (1 + spy_rets).resample("YE").prod() - 1
     yearly = pd.DataFrame({
         "Momentum": yearly_strat.values,
-        "SPY": yearly_spy.reindex(yearly_strat.index).values
+        "SXRT.DE": yearly_spy.reindex(yearly_strat.index).values
     }, index=yearly_strat.index.year)
     fig_yr = go.Figure()
     fig_yr.add_trace(go.Bar(x=yearly.index, y=yearly["Momentum"], name="Momentum"))
-    fig_yr.add_trace(go.Bar(x=yearly.index, y=yearly["SPY"], name="SPY"))
+    fig_yr.add_trace(go.Bar(x=yearly.index, y=yearly["SPY"], name="SXRT.DE"))
     fig_yr.update_layout(title="Rendements annuels", yaxis_tickformat=".0%",
                          barmode="group", height=350)
     st.plotly_chart(fig_yr, use_container_width=True)
