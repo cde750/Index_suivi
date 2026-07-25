@@ -86,11 +86,7 @@ def get_sp500_tickers():
     # Dictionnaire ticker -> secteur
     sectors = dict(zip(table["Ticker"], table["Sector"]))
 
-     # --- DEBUG (à retirer) ---
-    st.write("DEBUG - tableau complet :")
-    st.dataframe(table)
-    st.write("DEBUG - tickers :", tickers)
-    # --- fin DEBUG ---
+    
     
     return tickers, sectors
 
