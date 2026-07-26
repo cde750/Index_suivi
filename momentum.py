@@ -92,7 +92,7 @@ def download_prices(tickers, start, end):
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def download_benchmark(start, end):
-    spy = yf.download("SPY", start=start, end=end,
+    spy = yf.download("IUMO.L", start=start, end=end,
                       auto_adjust=True, progress=False)["Close"]
     if isinstance(spy, pd.DataFrame):
         spy = spy.iloc[:, 0]
