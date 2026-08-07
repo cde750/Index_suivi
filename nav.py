@@ -6,5 +6,5 @@ page_b = st.Page("momentum.py", title="SP 500", icon="🇺🇸")
 page_c = st.Page("momentum_EU.py", title="Eurostoxx 50", icon="🇪🇺")
 page_d = st.Page("Ey.py", title="Ey")
 
-pg = st.navigation([page_a, page_b, page_c])
+pg = st.navigation([page_a, page_b, page_c, page_d])
 pg.run()
