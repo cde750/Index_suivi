@@ -1,7 +1,7 @@
 """
 Application Streamlit - Stratégie Momentum S&P 500
 Signal 12-1 classique avec paramètres configurables.
-Lancer avec : streamlit run momentum_app.py
+Lancer avec : streamlit run momentum.py
 """
 
 import streamlit as st
@@ -9,6 +9,8 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import plotly.graph_objects as go
+import requests
+from io import StringIO
 from datetime import datetime
 
 # ---------------------------------------------------------------
@@ -47,15 +49,17 @@ with st.sidebar:
     max_tickers = st.slider("Nb max de tickers téléchargés", 50, 503, 503,
                             help="Réduire pour un test rapide")
 
+    st.subheader("Exécution")
+    capital = st.number_input("Capital du portefeuille (€/$)",
+                              min_value=1000, value=100_000, step=1000,
+                              help="Utilisé pour chiffrer les ordres à passer")
+
     run = st.button("🚀 Lancer le backtest", type="primary", use_container_width=True)
 
 # ---------------------------------------------------------------
 # Fonctions données (mises en cache)
 # ---------------------------------------------------------------
-import requests
-from io import StringIO
-
-@st.cache_data
+@st.cache_data(ttl=86400, show_spinner=False)
 def get_sp500_tickers():
     """Récupère la liste des tickers S&P 500 depuis Wikipedia."""
     url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
@@ -65,29 +69,29 @@ def get_sp500_tickers():
                       "Chrome/120.0.0.0 Safari/537.36"
     }
     response = requests.get(url, headers=headers)
-    response.raise_for_status()  # lève une erreur si problème
-    
+    response.raise_for_status()
+
     table = pd.read_html(StringIO(response.text))[0]
-    tickers = table["Symbol"].str.replace(".", "-", regex=False).tolist()
-    sectors = dict(zip(table["Symbol"].str.replace(".", "-", regex=False),
-                       table["GICS Sector"]))
-    return tickers, sectors
+    symbols = table["Symbol"].str.replace(".", "-", regex=False)
+    tickers = symbols.tolist()
+    sectors = dict(zip(symbols, table["GICS Sector"]))
+    names = dict(zip(symbols, table["Security"]))
+    return tickers, sectors, names
+
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def download_prices(tickers, start, end):
     """Télécharge les prix ajustés (dividendes inclus)."""
-    data = yf.download(tickers, start=start, end=end,
+    data = yf.download(list(tickers), start=start, end=end,
                        auto_adjust=True, progress=False, threads=True)
     prices = data["Close"]
     if isinstance(prices, pd.Series):
         prices = prices.to_frame()
     prices = prices.dropna(axis=1, thresh=int(len(prices) * 0.6))
 
-    # 🔑 Aligne tous les tickers sur un calendrier commun et bouche les
-    #    petits trous (jours fériés européens décalés)
+    # Aligne tous les tickers sur un calendrier commun et bouche les petits trous
     prices = prices.ffill(limit=5)
-
-    return prices   # ⚠️ tu avais oublié le return !
+    return prices
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -106,7 +110,6 @@ def run_backtest(prices, lookback, skip, n_stocks, rebal_freq,
                  weighting, cost_bps):
     """Backtest momentum avec rebalancement périodique."""
     monthly = prices.resample("ME").last()
-    rets_monthly = monthly.pct_change()
 
     # Signal momentum : perf de t-lookback à t-skip
     momentum = monthly.shift(skip) / monthly.shift(lookback) - 1
@@ -115,9 +118,9 @@ def run_backtest(prices, lookback, skip, n_stocks, rebal_freq,
     step = 1 if rebal_freq == "Mensuel" else 3
     rebal_dates = momentum.index[lookback::step]
 
-    daily_rets = prices.pct_change()
     portfolio_rets = []
     weights_history = {}
+    signal_history = {}          # 🔑 on mémorise aussi le signal pour l'analyse
     turnover_list = []
     prev_weights = pd.Series(dtype=float)
 
@@ -129,7 +132,8 @@ def run_backtest(prices, lookback, skip, n_stocks, rebal_freq,
         signal = signal[signal.index.isin(valid)]
         if len(signal) < n_stocks:
             continue
-        top = signal.nlargest(n_stocks)
+        ranked = signal.sort_values(ascending=False)
+        top = ranked.head(n_stocks)
 
         # --- Pondération ---
         if weighting == "Égale":
@@ -139,6 +143,11 @@ def run_backtest(prices, lookback, skip, n_stocks, rebal_freq,
             w = pos / pos.sum()
 
         weights_history[date] = w
+        # Rang et valeur du signal pour TOUT l'univers valide (utile pour le diff)
+        signal_history[date] = pd.DataFrame({
+            "momentum": ranked,
+            "rang": np.arange(1, len(ranked) + 1),
+        })
 
         # --- Turnover et coûts ---
         all_idx = w.index.union(prev_weights.index)
@@ -148,20 +157,13 @@ def run_backtest(prices, lookback, skip, n_stocks, rebal_freq,
         cost = turnover * 2 * cost_bps / 10000  # achat + vente
         prev_weights = w
 
-                # --- Rendements jusqu'au prochain rebalancement ---
+        # --- Rendements jusqu'au prochain rebalancement ---
         next_date = rebal_dates[i + 1] if i + 1 < len(rebal_dates) else prices.index[-1]
-
-        # Prix (pas les rendements) sur la période, pour les tickers sélectionnés
         px = prices.loc[date:next_date, w.index]
-
-        # 🔑 Nettoyage : forward-fill les trous (jours fériés décalés),
-        #    puis on retire les lignes encore vides en tête
-        px = px.ffill()
-        px = px.dropna(axis=0, how="any")   # sécurité : aucune ligne avec NaN résiduel
+        px = px.ffill().dropna(axis=0, how="any")
         if len(px) < 2:
             continue
 
-        # Rendements propres à partir des prix nettoyés
         period = px.pct_change().iloc[1:]
 
         # Dérive des poids intra-période (buy & hold entre rebalancements)
@@ -173,10 +175,10 @@ def run_backtest(prices, lookback, skip, n_stocks, rebal_freq,
         portfolio_rets.append(port_rets)
 
     if not portfolio_rets:
-        return None, None, None
+        return None, None, None, None
     strat_rets = pd.concat(portfolio_rets)
     strat_rets = strat_rets[~strat_rets.index.duplicated(keep="first")]
-    return strat_rets, weights_history, np.mean(turnover_list), momentum
+    return strat_rets, weights_history, signal_history, np.mean(turnover_list)
 
 
 def compute_metrics(rets, freq=252):
@@ -199,64 +201,95 @@ def compute_metrics(rets, freq=252):
     }, cum, dd
 
 
+# ---------------------------------------------------------------
+# 🆕 Comparaison entre deux rebalancements
+# ---------------------------------------------------------------
+def build_diff(w_prev, w_curr, sig_prev, sig_curr, prices,
+               date_prev, date_curr, sectors, names, capital):
+    """
+    Construit le tableau des mouvements entre deux rebalancements.
+    Retourne (df_diff, stats).
+    """
+    all_tickers = w_prev.index.union(w_curr.index)
 
-def compare_portfolios(weights_hist, prices, sectors, momentum_signal):
-    """Compare les deux derniers rebalancements et produit la liste d'ordres."""
-    dates = sorted(weights_hist.keys())
-    if len(dates) < 2:
-        return None
-    d_new, d_old = dates[-1], dates[-2]
-    w_new, w_old = weights_hist[d_new], weights_hist[d_old]
+    rows = []
+    for t in all_tickers:
+        wp = float(w_prev.get(t, 0.0))
+        wc = float(w_curr.get(t, 0.0))
+        delta_w = wc - wp
 
-    all_tickers = w_new.index.union(w_old.index)
-    wn = w_new.reindex(all_tickers, fill_value=0.0)
-    wo = w_old.reindex(all_tickers, fill_value=0.0)
+        # Action à mener
+        if wp == 0 and wc > 0:
+            action = "🟢 ACHAT (entrée)"
+        elif wp > 0 and wc == 0:
+            action = "🔴 VENTE (sortie)"
+        elif abs(delta_w) < 1e-9:
+            action = "⚪ INCHANGÉ"
+        elif delta_w > 0:
+            action = "🔵 RENFORCER"
+        else:
+            action = "🟠 ALLÉGER"
 
-    # Performance du titre entre les deux rebalancements
-    px = prices.reindex(columns=all_tickers)
-    try:
-        p_old = px.asof(d_old)
-        p_new = px.asof(d_new)
-        perf = (p_new / p_old - 1)
-    except Exception:
-        perf = pd.Series(np.nan, index=all_tickers)
+        # Rang momentum avant / après
+        rang_prev = sig_prev["rang"].get(t, np.nan) if sig_prev is not None else np.nan
+        rang_curr = sig_curr["rang"].get(t, np.nan) if sig_curr is not None else np.nan
+        mom_curr = sig_curr["momentum"].get(t, np.nan) if sig_curr is not None else np.nan
 
-    # Rang momentum actuel (pour situer les nouveaux entrants)
-    sig_new = momentum_signal.loc[d_new].dropna()
-    rank_new = sig_new.rank(ascending=False)
-    sig_old = momentum_signal.loc[d_old].dropna()
-    rank_old = sig_old.rank(ascending=False)
+        # Performance du titre entre les deux dates de rebalancement
+        try:
+            px_series = prices[t].loc[:date_curr].ffill()
+            p_prev = px_series.loc[:date_prev].iloc[-1]
+            p_curr = px_series.iloc[-1]
+            perf = p_curr / p_prev - 1
+        except (KeyError, IndexError):
+            perf = np.nan
 
-    df = pd.DataFrame({
-        "Ticker": all_tickers,
-        "Secteur": [sectors.get(t, "N/A") for t in all_tickers],
-        "Poids_avant": wo.values,
-        "Poids_apres": wn.values,
-        "Perf_periode": perf.reindex(all_tickers).values,
-        "Rang_avant": rank_old.reindex(all_tickers).values,
-        "Rang_apres": rank_new.reindex(all_tickers).values,
-    })
-    df["Delta_poids"] = df["Poids_apres"] - df["Poids_avant"]
+        rows.append({
+            "Ticker": t,
+            "Société": names.get(t, "N/A"),
+            "Secteur": sectors.get(t, "N/A"),
+            "Action": action,
+            "Poids avant": wp,
+            "Poids après": wc,
+            "Δ Poids": delta_w,
+            "Montant €": delta_w * capital,
+            "Rang avant": rang_prev,
+            "Rang après": rang_curr,
+            "Δ Rang": (rang_prev - rang_curr) if pd.notna(rang_prev) and pd.notna(rang_curr) else np.nan,
+            "Momentum": mom_curr,
+            "Perf depuis dernier rebal.": perf,
+        })
 
-    def classify(r):
-        if r["Poids_avant"] == 0 and r["Poids_apres"] > 0:
-            return "ENTRÉE"
-        if r["Poids_avant"] > 0 and r["Poids_apres"] == 0:
-            return "SORTIE"
-        if abs(r["Delta_poids"]) < 1e-9:
-            return "INCHANGÉ"
-        return "RENFORCEMENT" if r["Delta_poids"] > 0 else "ALLÈGEMENT"
+    df = pd.DataFrame(rows)
 
-    df["Action"] = df.apply(classify, axis=1)
-    turnover = df["Delta_poids"].abs().sum() / 2
-    return {"date_new": d_new, "date_old": d_old, "df": df, "turnover": turnover}
+    # Tri : entrées, puis sorties, puis ajustements, puis inchangés
+    ordre = {"🟢 ACHAT (entrée)": 0, "🔴 VENTE (sortie)": 1,
+             "🔵 RENFORCER": 2, "🟠 ALLÉGER": 3, "⚪ INCHANGÉ": 4}
+    df["_ordre"] = df["Action"].map(ordre)
+    df = df.sort_values(["_ordre", "Δ Poids"], ascending=[True, False]).drop(columns="_ordre")
+
+    entrees = df[df["Action"].str.contains("ACHAT")]
+    sorties = df[df["Action"].str.contains("VENTE")]
+    maintenus = df[~df["Action"].str.contains("ACHAT|VENTE")]
+
+    turnover = df["Δ Poids"].abs().sum() / 2
+    stats = {
+        "n_entrees": len(entrees),
+        "n_sorties": len(sorties),
+        "n_maintenus": len(maintenus),
+        "turnover": turnover,
+        "montant_brut": df["Montant €"].abs().sum(),
+        "cout_estime": turnover * 2 * cost_bps / 10000 * capital,
+    }
+    return df, stats, entrees, sorties, maintenus
+
 
 # ---------------------------------------------------------------
 # Exécution
 # ---------------------------------------------------------------
 if run:
     with st.spinner("📥 Récupération de la liste S&P 500..."):
-        tickers, sectors = get_sp500_tickers()
+        tickers, sectors, names = get_sp500_tickers()
         tickers = tickers[:max_tickers]
 
     # On télécharge avec une marge pour calculer le momentum dès le début
@@ -270,7 +303,7 @@ if run:
     st.success(f"✅ {prices.shape[1]} titres avec données exploitables.")
 
     with st.spinner("⚙️ Backtest en cours..."):
-        strat_rets, weights_hist, avg_turnover = run_backtest(
+        strat_rets, weights_hist, signal_hist, avg_turnover = run_backtest(
             prices, lookback, skip, n_stocks, rebal_freq, weighting, cost_bps
         )
 
@@ -293,10 +326,9 @@ if run:
     # -----------------------------------------------------------
     st.header("📊 Résultats")
 
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    cols = [col1, col2, col3, col4, col5, col6]
+    cols = st.columns(6)
     for col, (name, val) in zip(cols, metrics_strat.items()):
-        col.metric(f"{name} (Stratégie)", val, delta=None)
+        col.metric(f"{name}", val)
     st.caption(f"Turnover moyen par rebalancement : {avg_turnover:.1%}")
 
     # --- Tableau comparatif ---
@@ -337,30 +369,156 @@ if run:
                          barmode="group", height=350)
     st.plotly_chart(fig_yr, use_container_width=True)
 
-    # --- Portefeuille actuel ---
+    # -----------------------------------------------------------
+    # Portefeuille actuel
+    # -----------------------------------------------------------
     st.header("🗂️ Dernier portefeuille sélectionné")
-    last_date = max(weights_hist.keys())
+    dates_sorted = sorted(weights_hist.keys())
+    last_date = dates_sorted[-1]
     last_w = weights_hist[last_date].sort_values(ascending=False)
+
     df_port = pd.DataFrame({
         "Ticker": last_w.index,
+        "Société": [names.get(t, "N/A") for t in last_w.index],
         "Poids": last_w.values,
+        "Montant €": last_w.values * capital,
         "Secteur": [sectors.get(t, "N/A") for t in last_w.index],
     })
-    st.caption(f"Rebalancement du {last_date.date()}")
+    st.caption(f"Rebalancement du **{last_date.date()}** — capital simulé : {capital:,.0f}")
 
     c1, c2 = st.columns([1, 1])
     with c1:
-        st.dataframe(df_port.style.format({"Poids": "{:.2%}"}),
-                     use_container_width=True, height=400)
+        st.dataframe(
+            df_port.style.format({"Poids": "{:.2%}", "Montant €": "{:,.0f}"}),
+            use_container_width=True, height=420
+        )
     with c2:
         sector_w = df_port.groupby("Secteur")["Poids"].sum().sort_values()
         fig_sec = go.Figure(go.Bar(x=sector_w.values, y=sector_w.index,
                                    orientation="h"))
         fig_sec.update_layout(title="Exposition sectorielle",
-                              xaxis_tickformat=".0%", height=400)
+                              xaxis_tickformat=".0%", height=420)
         st.plotly_chart(fig_sec, use_container_width=True)
 
-    # --- Export ---
+    # -----------------------------------------------------------
+    # 🆕 ORDRES À PASSER — différences avec le rebalancement précédent
+    # -----------------------------------------------------------
+    st.header("🔄 Ordres à passer")
+
+    if len(dates_sorted) < 2:
+        st.info("Un seul rebalancement disponible : pas de comparaison possible.")
+    else:
+        prev_date = dates_sorted[-2]
+        w_prev = weights_hist[prev_date]
+        w_curr = weights_hist[last_date]
+        sig_prev = signal_hist.get(prev_date)
+        sig_curr = signal_hist.get(last_date)
+
+        df_diff, stats, entrees, sorties, maintenus = build_diff(
+            w_prev, w_curr, sig_prev, sig_curr, prices,
+            prev_date, last_date, sectors, names, capital
+        )
+
+        st.markdown(
+            f"Comparaison **{prev_date.date()}** → **{last_date.date()}**"
+        )
+
+        # --- Synthèse en un coup d'œil ---
+        k1, k2, k3, k4, k5 = st.columns(5)
+        k1.metric("🟢 Entrées", stats["n_entrees"])
+        k2.metric("🔴 Sorties", stats["n_sorties"])
+        k3.metric("⚪ Maintenus", stats["n_maintenus"])
+        k4.metric("Turnover", f"{stats['turnover']:.1%}")
+        k5.metric("Coût estimé", f"{stats['cout_estime']:,.0f}")
+
+        st.caption(
+            f"Montant brut à traiter (achats + ventes) : **{stats['montant_brut']:,.0f}** "
+            f"soit {stats['montant_brut'] / capital:.1%} du capital."
+        )
+
+        # --- Vue rapide : listes compactes ---
+        cA, cB = st.columns(2)
+        with cA:
+            st.subheader("🟢 À acheter")
+            if entrees.empty:
+                st.write("_Aucune entrée._")
+            else:
+                st.dataframe(
+                    entrees[["Ticker", "Société", "Secteur", "Poids après",
+                             "Montant €", "Rang après", "Momentum"]]
+                    .style.format({"Poids après": "{:.2%}",
+                                   "Montant €": "{:,.0f}",
+                                   "Rang après": "{:.0f}",
+                                   "Momentum": "{:.1%}"}),
+                    use_container_width=True, hide_index=True
+                )
+        with cB:
+            st.subheader("🔴 À vendre")
+            if sorties.empty:
+                st.write("_Aucune sortie._")
+            else:
+                st.dataframe(
+                    sorties[["Ticker", "Société", "Secteur", "Poids avant",
+                             "Montant €", "Rang avant", "Rang après",
+                             "Perf depuis dernier rebal."]]
+                    .style.format({"Poids avant": "{:.2%}",
+                                   "Montant €": "{:,.0f}",
+                                   "Rang avant": "{:.0f}",
+                                   "Rang après": "{:.0f}",
+                                   "Perf depuis dernier rebal.": "{:+.1%}"}),
+                    use_container_width=True, hide_index=True
+                )
+
+        # --- Tableau détaillé complet ---
+        with st.expander("📋 Détail complet de tous les mouvements"):
+            st.dataframe(
+                df_diff.style.format({
+                    "Poids avant": "{:.2%}",
+                    "Poids après": "{:.2%}",
+                    "Δ Poids": "{:+.2%}",
+                    "Montant €": "{:+,.0f}",
+                    "Rang avant": "{:.0f}",
+                    "Rang après": "{:.0f}",
+                    "Δ Rang": "{:+.0f}",
+                    "Momentum": "{:.1%}",
+                    "Perf depuis dernier rebal.": "{:+.1%}",
+                }).background_gradient(subset=["Δ Poids"], cmap="RdYlGn"),
+                use_container_width=True, height=500, hide_index=True
+            )
+
+        # --- Rotation sectorielle ---
+        st.subheader("🏭 Rotation sectorielle")
+        sec_prev = (pd.Series(w_prev.values, index=w_prev.index)
+                    .groupby(lambda t: sectors.get(t, "N/A")).sum())
+        sec_curr = (pd.Series(w_curr.values, index=w_curr.index)
+                    .groupby(lambda t: sectors.get(t, "N/A")).sum())
+        sec_df = pd.DataFrame({
+            "Avant": sec_prev, "Après": sec_curr
+        }).fillna(0)
+        sec_df["Δ"] = sec_df["Après"] - sec_df["Avant"]
+        sec_df = sec_df.sort_values("Δ")
+
+        fig_rot = go.Figure()
+        fig_rot.add_trace(go.Bar(
+            x=sec_df["Δ"], y=sec_df.index, orientation="h",
+            marker_color=["#d62728" if v < 0 else "#2ca02c" for v in sec_df["Δ"]],
+            name="Variation"
+        ))
+        fig_rot.update_layout(
+            title="Variation d'exposition sectorielle entre les deux rebalancements",
+            xaxis_tickformat="+.1%", height=400
+        )
+        st.plotly_chart(fig_rot, use_container_width=True)
+
+        # --- Export des ordres ---
+        st.download_button(
+            "💾 Télécharger les ordres à passer (CSV)",
+            df_diff.to_csv(index=False).encode(),
+            file_name=f"ordres_{prev_date.date()}_to_{last_date.date()}.csv",
+            mime="text/csv",
+        )
+
+    # --- Export des rendements ---
     st.download_button(
         "💾 Télécharger les rendements quotidiens (CSV)",
         strat_rets.to_csv().encode(),
