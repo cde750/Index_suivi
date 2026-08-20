@@ -176,7 +176,7 @@ def run_backtest(prices, lookback, skip, n_stocks, rebal_freq,
         return None, None, None
     strat_rets = pd.concat(portfolio_rets)
     strat_rets = strat_rets[~strat_rets.index.duplicated(keep="first")]
-    return strat_rets, weights_history, np.mean(turnover_list)
+    return strat_rets, weights_history, np.mean(turnover_list), momentum
 
 
 def compute_metrics(rets, freq=252):
