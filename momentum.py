@@ -199,6 +199,58 @@ def compute_metrics(rets, freq=252):
     }, cum, dd
 
 
+
+def compare_portfolios(weights_hist, prices, sectors, momentum_signal):
+    """Compare les deux derniers rebalancements et produit la liste d'ordres."""
+    dates = sorted(weights_hist.keys())
+    if len(dates) < 2:
+        return None
+    d_new, d_old = dates[-1], dates[-2]
+    w_new, w_old = weights_hist[d_new], weights_hist[d_old]
+
+    all_tickers = w_new.index.union(w_old.index)
+    wn = w_new.reindex(all_tickers, fill_value=0.0)
+    wo = w_old.reindex(all_tickers, fill_value=0.0)
+
+    # Performance du titre entre les deux rebalancements
+    px = prices.reindex(columns=all_tickers)
+    try:
+        p_old = px.asof(d_old)
+        p_new = px.asof(d_new)
+        perf = (p_new / p_old - 1)
+    except Exception:
+        perf = pd.Series(np.nan, index=all_tickers)
+
+    # Rang momentum actuel (pour situer les nouveaux entrants)
+    sig_new = momentum_signal.loc[d_new].dropna()
+    rank_new = sig_new.rank(ascending=False)
+    sig_old = momentum_signal.loc[d_old].dropna()
+    rank_old = sig_old.rank(ascending=False)
+
+    df = pd.DataFrame({
+        "Ticker": all_tickers,
+        "Secteur": [sectors.get(t, "N/A") for t in all_tickers],
+        "Poids_avant": wo.values,
+        "Poids_apres": wn.values,
+        "Perf_periode": perf.reindex(all_tickers).values,
+        "Rang_avant": rank_old.reindex(all_tickers).values,
+        "Rang_apres": rank_new.reindex(all_tickers).values,
+    })
+    df["Delta_poids"] = df["Poids_apres"] - df["Poids_avant"]
+
+    def classify(r):
+        if r["Poids_avant"] == 0 and r["Poids_apres"] > 0:
+            return "ENTRÉE"
+        if r["Poids_avant"] > 0 and r["Poids_apres"] == 0:
+            return "SORTIE"
+        if abs(r["Delta_poids"]) < 1e-9:
+            return "INCHANGÉ"
+        return "RENFORCEMENT" if r["Delta_poids"] > 0 else "ALLÈGEMENT"
+
+    df["Action"] = df.apply(classify, axis=1)
+    turnover = df["Delta_poids"].abs().sum() / 2
+    return {"date_new": d_new, "date_old": d_old, "df": df, "turnover": turnover}
+
 # ---------------------------------------------------------------
 # Exécution
 # ---------------------------------------------------------------
